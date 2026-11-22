@@ -1,0 +1,23 @@
+# Потрібна картка home-flow-card: https://github.com/rosenrot00/home-flow-card
+type: custom:home-flow-styled
+background: linear-gradient(180deg,#dff1ff 0%,#f6fbff 60%,#eef7e6 100%)
+vars:            # варіант «Цегла й черепиця»
+  wall: "#f3e2c4"
+  wall-top: "#f8ecd6"
+  gable: "#e6cfa8"
+  gable-top: "#ecd8b6"
+  fascia: "#fff7ea"
+  roof: "#b4553a"
+  roof-back: "#8f3f2a"
+  panel: "#2b4a7e"
+  panel-top: "#3a5d96"
+  panel-seam: "#8fb0de"
+  ground: "#d5eabf"
+  shadow: "rgba(60,90,40,.25)"
+  box-front: "#ffffff"
+  box-side: "#dfe3ea"
+card:            # звичайний конфіг home-flow-card
+  solar: {entity: sensor.deye_pv_power}
+  battery: {entity: sensor.deye_battery_power, state_of_charge: sensor.deye_battery}
+  grid: {entity: sensor.deye_grid_power}
+  home: {entity: sensor.deye_load_power}

@@ -1,0 +1,10 @@
+type: custom:deye-screen-card
+solar: sensor.deye_pv_power            # потужність сонця, W
+battery: sensor.deye_battery_power     # АКБ, W: + розряд, − заряд
+battery_soc: sensor.deye_battery       # заряд АКБ, %
+grid: sensor.deye_grid_power           # мережа, W: + купівля, − продаж
+load: sensor.deye_load_power           # споживання, W
+grid_status: binary_sensor.deye_grid   # лампочка AC (необов'язково)
+alarm: sensor.deye_device_state        # лампочка Alarm: on/problem/Alarm/Fault (необов'язково)
+max: 8000                              # межа шкал, W (типово 8000)
+# frame: false                         # лише екран, без корпусу з логотипом
