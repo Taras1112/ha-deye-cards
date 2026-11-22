@@ -50,7 +50,9 @@ class DeyeScreenCard extends HTMLElement {
       this.attachShadow({ mode: 'open' });
       // натиск на зону (сонце / АКБ / мережа / дім / лампочку) → стандартне вікно HA з графіком цього датчика
       this.shadowRoot.addEventListener('click', ev => {
-        const z = ev.composedPath().find(n => n.dataset && n.dataset.e);
+        const path = ev.composedPath();
+        if (path.find(n => n.dataset && n.dataset.act === 'settings')) return this._openSettings();
+        const z = path.find(n => n.dataset && n.dataset.e);
         if (z) this.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId: z.dataset.e }, bubbles: true, composed: true }));
       });
     }
@@ -60,6 +62,15 @@ class DeyeScreenCard extends HTMLElement {
     return Object.assign({ max: 8000 }, deyeDetect(hass));
   }
   getCardSize() { return 6; }
+  // шестерня: сторінка пристрою інвертора в HA (режим роботи, програми, струми заряду…); якщо пристрою немає — налаштування картки
+  _openSettings() {
+    const c = this._c, h = this._hass, reg = (h && h.entities) || {};
+    const ent = [c.solar, c.battery, c.grid, c.load, c.alarm].find(e => e && reg[e] && reg[e].device_id);
+    const url = c.settings_url || (ent ? `/config/devices/device/${reg[ent].device_id}` : null);
+    if (!url) { if (c.solar) this.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId: c.solar }, bubbles: true, composed: true })); return; }
+    history.pushState(null, '', url);
+    window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: false } }));
+  }
   getGridOptions() { return { columns: 12, rows: 'auto', min_columns: 6 }; }
   static getConfigElement() { return document.createElement('deye-screen-card-editor'); }
   connectedCallback() { this._tick = setInterval(() => this._clock(), 1000); }
@@ -138,7 +149,9 @@ class DeyeScreenCard extends HTMLElement {
         `<text x="${cx}" y="${cy + 43}" class="val">${kw(w)}</text><text x="${cx}" y="${cy + 53}" class="unit">kW</text></g>`;
     };
     const pvIn = pv > 5, batIn = bat > 5, batOut = bat < -5, gridIn = grid > 5, gridOut = grid < -5, loadOut = load > 5;
-    const ln = (d, act, rev) => `<path d="${d}" class="ln${act ? ' act' : ''}${rev ? ' rev' : ''}"/>`;
+    const DUR = 1.6, phase = (Date.now() / 1000) % DUR;
+    const ln = (d, act, rev) => `<path d="${d}" class="ln${act ? ' act' : ''}"/>` + (act ? [0, 0.5].map(k =>
+      `<circle r="3.2" class="run" style="offset-path:path('${d}');animation-delay:-${(phase + k * DUR).toFixed(2)}s;animation-direction:${rev ? 'reverse' : 'normal'}"/>`).join('') : '');
     const ar = (x, y, rot, act) => act ? `<path transform="translate(${x} ${y}) rotate(${rot})" d="M-5 -4.5 L0.5 0 L-5 4.5" class="arr"/>` : '';
     const dot = (x, y, act) => act ? `<circle cx="${x}" cy="${y}" r="3" class="dot"/>` : '';
     const led = (name, on, cls, ent) => `<div class="led${ent ? ' lamp' : ''}"${ent ? ` data-e="${ent}"` : ''}><i class="${on ? cls : ''}"></i><span>${name}</span></div>`;
@@ -146,7 +159,7 @@ class DeyeScreenCard extends HTMLElement {
     const screen = `<svg viewBox="0 0 480 320">
   <text id="dt" x="232" y="33" class="hdr" text-anchor="middle"></text>
   <text id="dw" x="400" y="33" class="hdr" text-anchor="end"></text>
-  <g transform="translate(424 27)"><path class="gear" d="M-2.2-12h4.4l.8 3.4 2.6 1.1 3-1.8 3.1 3.1-1.8 3 1.1 2.6 3.4.8v4.4l-3.4.8-1.1 2.6 1.8 3-3.1 3.1-3-1.8-2.6 1.1-.8 3.4h-4.4l-.8-3.4-2.6-1.1-3 1.8-3.1-3.1 1.8-3-1.1-2.6-3.4-.8v-4.4l3.4-.8 1.1-2.6-1.8-3 3.1-3.1 3 1.8 2.6-1.1z"/><circle r="4.6" fill="#eef1f3"/></g>
+  <g class="gearz" data-act="settings" transform="translate(424 27)"><circle r="16" fill="transparent"/><path class="gear" d="M-2.2-12h4.4l.8 3.4 2.6 1.1 3-1.8 3.1 3.1-1.8 3 1.1 2.6 3.4.8v4.4l-3.4.8-1.1 2.6 1.8 3-3.1 3.1-3-1.8-2.6 1.1-.8 3.4h-4.4l-.8-3.4-2.6-1.1-3 1.8-3.1-3.1 1.8-3-1.1-2.6-3.4-.8v-4.4l3.4-.8 1.1-2.6-1.8-3 3.1-3.1 3 1.8 2.6-1.1z"/><circle r="4.6" fill="#eef1f3"/></g>
   ${gauge(S.sx, S.ty, pv, I.sun, c.solar)}
   ${gauge(S.sx, S.by, bat, I.bat, c.battery || c.battery_soc)}
   ${soc !== null ? `<text x="${S.sx}" y="${S.by - 10}" class="soc zone" data-e="${c.battery_soc}">${soc}%</text>` : ''}
@@ -186,9 +199,10 @@ class DeyeScreenCard extends HTMLElement {
   .hdr{font:15px Arial,sans-serif;fill:#14181c}
   .gear{fill:#3d6fae}
   .ln{fill:none;stroke:#2a3038;stroke-width:1.5;stroke-dasharray:2.5 3;opacity:.35}
-  .ln.act{opacity:1;animation:flow .8s linear infinite}
-  .ln.act.rev{animation-direction:reverse}
-  @keyframes flow{to{stroke-dashoffset:-11}}
+  .ln.act{opacity:.9}
+  .run{fill:#2fc23c;stroke:#eef1f3;stroke-width:1;offset-rotate:0deg;animation:run ${1.6}s linear infinite}
+  @keyframes run{from{offset-distance:0%}to{offset-distance:100%}}
+  .gearz{cursor:pointer}.gearz:hover .gear{fill:#2f5a92}
   .arr{fill:none;stroke:#2a3038;stroke-width:1.6;stroke-dasharray:2 1.6;stroke-linecap:round}
   .on{fill:#fff;stroke:#2fc23c;stroke-width:3}
   .ontx{font:700 17px Arial,sans-serif;fill:#2fb83a;text-anchor:middle}

@@ -73,7 +73,8 @@ Values in **kW** are converted to W automatically. With several inverters (e.g. 
 
 - **No-YAML editor:** ✏️ on the card → pick sensors from lists (only power / percent / status entities), gauge scale in kW, switches for housing and signs. For the house — palette from a list.
 - **Size:** in dashboard edit mode the card can be resized with the mouse ("Layout" tab).
-- **Charts:** tap a zone — solar, battery (or "86 %"), grid or home — and HA opens a dialog with the chart of that value. The AC / Alarm LEDs open grid and inverter-state history. On the house, solar, battery, grid and home are clickable too.
+- **Charts:** tap a zone — solar, battery (or "86 %"), grid or home — and HA opens a dialog with the chart of that value. The AC / Alarm LEDs open grid and inverter-state history. The **gear** opens the inverter's device page in HA with all its settings (work mode, programs, charge currents…); override with `settings_url`.
+- **Flow:** like on the Deye screen, green dots run along the lines in the direction of energy flow — from solar, to home, to/from grid, into the battery (charge) or out of it (discharge). On the house, solar, battery, grid and home are clickable too.
 
 ---
 
