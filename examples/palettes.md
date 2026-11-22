@@ -1,6 +1,6 @@
-# Палітри для home-flow-styled
+# Палітри для home-flow-styled / Palettes for home-flow-styled
 
-| Змінна | 1 Цегла й черепиця | 2 Сучасний | 3 Скандинавський | 4 Теплий вечір |
+| Змінна / Variable | 1 Цегла й черепиця / Brick & tile | 2 Сучасний / Modern | 3 Скандинавський / Nordic | 4 Теплий вечір / Warm evening |
 |---|---|---|---|---|
 | wall | #f3e2c4 | #fafafa | #c98d5b | #ffe7c2 |
 | wall-top | #f8ecd6 | #ffffff | #d9a274 | #fff0d6 |
@@ -16,3 +16,5 @@
 | background | `linear-gradient(180deg,#dff1ff 0%,#f6fbff 60%,#eef7e6 100%)` | `linear-gradient(180deg,#cfe9ff 0%,#f4faff 70%)` | `linear-gradient(180deg,#e8f4ff 0%,#ffffff 100%)` | `linear-gradient(180deg,#ffd9a8 0%,#ffeeda 45%,#f3f7e6 100%)` |
 
 Інші змінні (усі з префіксом `--house-` у коді картки): `shadow`, `box-front`, `box-side`, `box-top`, `grille`, `car-body`, `car-glass` тощо.
+
+Other variables (all prefixed with `--house-` in the card code): `shadow`, `box-front`, `box-side`, `box-top`, `grille`, `car-body`, `car-glass`, etc.
