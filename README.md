@@ -57,7 +57,17 @@ Older HA with HACS: HACS → ⋮ → Custom repositories → same URL, type **Da
 ### Adding a card
 
 Dashboard → ✏️ Edit → **Add card** → search for **Deye** or **house** → pick it.
-The card finds your inverter sensors automatically (`sensor.<name>_pv_power`, `_battery_power`, `_battery`, `_grid_power`, `_load_power`) — if yours are named differently, fix them in the card's YAML editor.
+
+**The card finds the sensors by itself** — even with just `type: custom:deye-screen-card` in YAML.
+It understands naming from different integrations and picks the inverter with the most matching sensors:
+
+| Integration | Example names it finds |
+|---|---|
+| ha-solarman (davidrapan) | `sensor.deye_pv_power`, `_battery_power`, `_battery`, `_grid_power`, `_load_power`, `binary_sensor.deye_grid`, `_device_state` |
+| legacy solarman (StephanJoubert) | `sensor.solarman_total_solar_power`, `_battery_soc`, `_total_grid_power`, `_total_load_power`, `_running_status` |
+| Sunsynk / others | `sensor.sunsynk_solar_power`, `_battery_soc`, `_grid_power`, `_essential_power`, `binary_sensor.sunsynk_grid_connected` |
+
+Values in **kW** are converted to W automatically. With several inverters (e.g. `lp1` and `lp3`) or a wrong match, just set the sensors in YAML — explicit settings always win over auto-detection.
 
 ---
 
@@ -77,19 +87,23 @@ max: 8000
 
 | Option | Required | Description |
 |---|---|---|
-| `solar` | yes | Solar panel power, W |
-| `grid` | yes | Grid power, W. **Positive = import**, negative = export |
-| `load` | yes | Home consumption, W |
+| `solar` | no* | Solar panel power, W |
+| `grid` | no* | Grid power, W. **Positive = import**, negative = export |
+| `load` | no* | Home consumption, W |
 | `battery` | no | Battery power, W. **Positive = discharge**, negative = charge (as in Deye/Solarman) |
 | `battery_soc` | no | Battery state of charge, % — shown above the battery |
 | `grid_status` | no | Grid presence `binary_sensor` → **AC** LED. Without it AC is lit whenever power flows through the grid |
 | `alarm` | no | Alarm entity → red **Alarm** LED. Triggers on states `on`, `problem`, `Alarm`, `Fault` |
 | `max` | no | Gauge limit in W, default `8000` |
 | `frame` | no | `false` — screen only, without the housing |
+| `invert_battery` | no | `true` — if your integration uses the opposite battery sign (charge positive) |
+| `invert_grid` | no | `true` — if your grid sign is opposite (import negative) |
 
-The **DC** LED is lit when there is solar power or a battery is configured; **Normal** — when there is no alarm.
+\* If omitted — detected automatically.
 
-> If the battery or grid arrow points the wrong way, your integration uses the opposite sign. Create a template sensor multiplied by −1.
+The **AC** LED is lit while **the grid is present** and goes dark during an outage. The **DC** LED is lit when there is solar power or a battery is configured; **Normal** — when there is no alarm.
+
+> If the battery or grid arrow points the wrong way, add `invert_battery: true` or `invert_grid: true`.
 
 ---
 
