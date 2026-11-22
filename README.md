@@ -23,12 +23,24 @@ Both cards ship **in a single file** `ha-deye-cards.js`. Install once, then pick
 - **Deye inverter screen**;
 - **Coloured house**.
 
-### Option 1 — Marketplace (Home Assistant 2026+)
+### ⚡ Quick — one-click buttons (Home Assistant 2026+)
+
+Click a button → your Home Assistant opens straight on the right Marketplace page → **Install**.
+(The first time my.home-assistant.io asks for your HA address, e.g. `http://192.168.1.10:8123`.)
+
+| What | Button |
+|---|---|
+| **1. These cards** (Deye screen + coloured house) | [![Open in Marketplace](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Taras1112&repository=ha-deye-cards&category=plugin) |
+| **2. Home Flow Card by flixlix** (needed for the coloured house) | [![Open in Marketplace](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=flixlix&repository=home-flow-card&category=plugin) |
+
+Then reload with **Ctrl+F5**.
+
+### Option 1 — Marketplace manually
 
 HACS is now built into Home Assistant as **Marketplace** (sidebar → Marketplace, or `/marketplace`).
 
 1. Marketplace → ⋮ → **Add from GitHub link** → `https://github.com/Taras1112/ha-deye-cards` → Add → **Install**.
-2. For the house, also install **Home Flow Card** by **flixlix** (*"Your own little isometric home…"*) from the Marketplace.
+2. For the house, also install **Home Flow Card** by **flixlix** (*"Your own little isometric home…"*) — easiest via [this link](https://my.home-assistant.io/redirect/hacs_repository/?owner=flixlix&repository=home-flow-card&category=plugin), search shows many similar cards.
    > ⚠️ There is another card with the same name by `rosenrot00` (a flow editor) — that is **not** the house.
 3. Reload the page (**Ctrl+F5**).
 

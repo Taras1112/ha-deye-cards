@@ -23,12 +23,24 @@
 - **Deye — екран інвертора**;
 - **Будиночок кольоровий**.
 
-### Спосіб 1 — Магазин (Home Assistant 2026+)
+### ⚡ Швидко — кнопками (Home Assistant 2026+)
+
+Натисни кнопку → відкриється твій Home Assistant одразу на потрібній сторінці Магазину → **Встановити**.
+(Перший раз my.home-assistant.io спитає адресу твого HA, напр. `http://192.168.1.10:8123`.)
+
+| Що | Кнопка |
+|---|---|
+| **1. Ці картки** (екран Deye + кольоровий будиночок) | [![Відкрити в Магазині](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Taras1112&repository=ha-deye-cards&category=plugin) |
+| **2. Будиночок Home Flow Card від flixlix** (потрібен для кольорового будиночка) | [![Відкрити в Магазині](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=flixlix&repository=home-flow-card&category=plugin) |
+
+Після встановлення — **Ctrl+F5**.
+
+### Спосіб 1 — Магазин вручну
 
 HACS тепер вбудований у Home Assistant як **Магазин** (Marketplace: бокове меню → Marketplace, або адреса `/marketplace`).
 
 1. Магазин → ⋮ → **Додати з посилання GitHub** → `https://github.com/Taras1112/ha-deye-cards` → Додати → **Встановити**.
-2. Для будиночка ще встанови з Магазину картку **Home Flow Card** від **flixlix** (*«Your own little isometric home…»*).
+2. Для будиночка ще встанови з Магазину картку **Home Flow Card** від **flixlix** (*«Your own little isometric home…»*) — простіше [цим посиланням](https://my.home-assistant.io/redirect/hacs_repository/?owner=flixlix&repository=home-flow-card&category=plugin), бо в пошуку їх багато.
    > ⚠️ Є ще картка з такою самою назвою від `rosenrot00` (редактор потоків) — це **не** будиночок.
 3. Онови сторінку (**Ctrl+F5**).
 
