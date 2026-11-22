@@ -5,7 +5,7 @@
 Дві картки для дашборда Home Assistant з інвертором Deye (Solarman / Sunsynk тощо):
 
 1. **`deye-screen-card`** — копія екрана інвертора Deye: корпус з логотипом, лампочки DC / AC / Normal / Alarm, 4 шкали (сонце, АКБ, мережа, дім) навколо «ON», анімовані стрілки потоку, годинник.
-2. **`home-flow-styled`** — обгортка над [home-flow-card](https://github.com/rosenrot00/home-flow-card), яка розфарбовує сірий будиночок (стіни, дах, панелі, трава, небо).
+2. **`home-flow-styled`** — обгортка над [home-flow-card](https://github.com/flixlix/home-flow-card), яка розфарбовує сірий будиночок (стіни, дах, панелі, трава, небо).
 
 | deye-screen-card | home-flow-styled |
 |---|---|
@@ -29,15 +29,20 @@
    - `/local/deye-cards/home-flow-styled.js`
 3. Онови сторінку з **Ctrl+F5**. На телефоні в застосунку HA: Налаштування застосунку → Налагодження → Очистити кеш фронтенду.
 
-### Спосіб 2 — HACS (лише deye-screen-card)
+### Спосіб 2 — Магазин (Home Assistant 2026+)
 
-HACS → ⋮ → **Custom repositories** → URL цього репозиторію, тип **Dashboard** → встановити.
-`home-flow-styled.js` у такому разі додай вручну, як у способі 1.
+HACS тепер вбудований у Home Assistant як **Магазин** (Marketplace: бокове меню → Marketplace, або адреса `/marketplace`).
+
+1. Магазин → ⋮ → **Додати з посилання GitHub** → `https://github.com/Taras1112/ha-deye-cards` → Додати → встановити.
+   Так ставиться `deye-screen-card`; `home-flow-styled.js` додай вручну, як у способі 1.
+2. Старіша HA з HACS: HACS → ⋮ → Custom repositories → те саме посилання, тип **Dashboard**.
 
 ### Будиночок (home-flow-card)
 
-Для `home-flow-styled` потрібна сама картка будиночка:
-HACS → Custom repositories → `https://github.com/rosenrot00/home-flow-card` (Dashboard) → встановити.
+Для `home-flow-styled` потрібна ізометрична картка будиночка від **flixlix**. Вона вже є в Магазині:
+Магазин → пошук **Home Flow Card** → обрати ту, що від **flixlix** (*«Your own little isometric home…»*) → встановити.
+
+> ⚠️ Є ще картка з такою самою назвою від `rosenrot00` (редактор потоків) — це **не** будиночок. Якщо Магазин пише «rosenrot00/home-flow-card is already in the Marketplace», значить, ти вставив не те посилання.
 
 ---
 

@@ -5,7 +5,7 @@
 Two dashboard cards for Home Assistant with a Deye inverter (Solarman / Sunsynk integrations, etc.):
 
 1. **`deye-screen-card`** — a replica of the Deye inverter screen: housing with logo, DC / AC / Normal / Alarm LEDs, 4 gauges (solar, battery, grid, home) around the "ON" circle, animated flow arrows and a live clock.
-2. **`home-flow-styled`** — a wrapper around [home-flow-card](https://github.com/rosenrot00/home-flow-card) that paints the grey house (walls, roof, panels, lawn, sky).
+2. **`home-flow-styled`** — a wrapper around [home-flow-card](https://github.com/flixlix/home-flow-card) that paints the grey house (walls, roof, panels, lawn, sky).
 
 | deye-screen-card | home-flow-styled |
 |---|---|
@@ -29,15 +29,20 @@ House colour variants:
    - `/local/deye-cards/home-flow-styled.js`
 3. Reload the page with **Ctrl+F5**. In the HA mobile app: App settings → Troubleshooting → Reset frontend cache.
 
-### Option 2 — HACS (deye-screen-card only)
+### Option 2 — Marketplace (Home Assistant 2026+)
 
-HACS → ⋮ → **Custom repositories** → URL of this repository, type **Dashboard** → install.
-In that case add `home-flow-styled.js` manually as in option 1.
+HACS is now built into Home Assistant as **Marketplace** (sidebar → Marketplace, or `/marketplace`).
+
+1. Marketplace → ⋮ → **Add from GitHub link** → `https://github.com/Taras1112/ha-deye-cards` → Add → install.
+   This installs `deye-screen-card`; add `home-flow-styled.js` manually as in option 1.
+2. Older HA with HACS: HACS → ⋮ → Custom repositories → same URL, type **Dashboard**.
 
 ### The house (home-flow-card)
 
-`home-flow-styled` needs the house card itself:
-HACS → Custom repositories → `https://github.com/rosenrot00/home-flow-card` (Dashboard) → install.
+`home-flow-styled` needs the isometric house card by **flixlix**. It is already in the Marketplace:
+Marketplace → search **Home Flow Card** → pick the one by **flixlix** (*"Your own little isometric home…"*) → install.
+
+> ⚠️ There is another card with the same name by `rosenrot00` (a flow editor) — that is **not** the house.
 
 ---
 
