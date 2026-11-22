@@ -94,7 +94,7 @@ class DeyeScreenCard extends HTMLElement {
   _wmEnt(p) {
     const e = { tou: `select.${p}_time_of_use`, work_mode: `select.${p}_work_mode`, pattern: `select.${p}_energy_pattern`,
       zero: `number.${p}_zero_export_power`, sell: `switch.${p}_export_surplus`, sell_power: `number.${p}_export_surplus_power`,
-      peak: `switch.${p}_grid_peak_shaving`, peak_power: `number.${p}_grid_peak_shaving`, rows: [] };
+      peak: `switch.${p}_grid_peak_shaving`, peak_power: `number.${p}_grid_peak_shaving`, maxsolar: `number.${p}_pv_power`, rows: [] };
     for (let i = 1; i <= 6; i++) e.rows.push({ time: `time.${p}_program_${i}_time`, power: `number.${p}_program_${i}_power`, soc: `number.${p}_program_${i}_soc`, chg: `select.${p}_program_${i}_charging` });
     return e;
   }
@@ -103,7 +103,7 @@ class DeyeScreenCard extends HTMLElement {
     const chg = v => ({ grid: v === 'Grid' || v === 'Both', gen: v === 'Generator' || v === 'Both' });
     return {
       tou: st(E.tou) !== undefined ? st(E.tou) !== 'Disabled' : null, work_mode: st(E.work_mode), pattern: st(E.pattern),
-      zero: st(E.zero), sell: st(E.sell) === 'on', sell_power: st(E.sell_power), peak: st(E.peak) === 'on', peak_power: st(E.peak_power),
+      zero: st(E.zero), sell: st(E.sell) === 'on', sell_power: st(E.sell_power), peak: st(E.peak) === 'on', peak_power: st(E.peak_power), maxsolar: st(E.maxsolar),
       rows: E.rows.map(r => Object.assign({ time: (st(r.time) || '').slice(0, 5), power: st(r.power), soc: st(r.soc) }, chg(st(r.chg)))),
     };
   }
@@ -120,11 +120,12 @@ class DeyeScreenCard extends HTMLElement {
     }
     if (d.work_mode !== c.work_mode) sel(E.work_mode, d.work_mode, `Work mode: ${d.work_mode}`);
     if (d.pattern !== c.pattern) sel(E.pattern, d.pattern, `Energy pattern: ${d.pattern}`);
-    if (String(d.zero) !== String(c.zero)) num(E.zero, d.zero, `Zero export: ${d.zero} W`);
-    if (d.sell !== c.sell) sw(E.sell, d.sell, `Продаж надлишку: ${d.sell ? 'так' : 'ні'}`);
-    if (String(d.sell_power) !== String(c.sell_power)) num(E.sell_power, d.sell_power, `Потужність продажу: ${d.sell_power} W`);
-    if (d.peak !== c.peak) sw(E.peak, d.peak, `Обмеження з мережі: ${d.peak ? 'так' : 'ні'}`);
-    if (String(d.peak_power) !== String(c.peak_power)) num(E.peak_power, d.peak_power, `Ліміт з мережі: ${d.peak_power} W`);
+    if (String(d.zero) !== String(c.zero)) num(E.zero, d.zero, `Zero-export Power: ${d.zero} W`);
+    if (d.sell !== c.sell) sw(E.sell, d.sell, `Solar Sell: ${d.sell ? 'так' : 'ні'}`);
+    if (String(d.sell_power) !== String(c.sell_power)) num(E.sell_power, d.sell_power, `Max Sell Power: ${d.sell_power} W`);
+    if (d.peak !== c.peak) sw(E.peak, d.peak, `Grid Peak Shaving: ${d.peak ? 'так' : 'ні'}`);
+    if (String(d.peak_power) !== String(c.peak_power)) num(E.peak_power, d.peak_power, `Grid Peak Shaving: ${d.peak_power} W`);
+    if (d.maxsolar !== undefined && String(d.maxsolar) !== String(c.maxsolar)) num(E.maxsolar, d.maxsolar, `Max Solar Power: ${d.maxsolar} W`);
     d.rows.forEach((r, i) => {
       const o = c.rows[i], R = E.rows[i], n = i + 1;
       if (r.time !== o.time) out.push({ label: `Програма ${n}: початок ${r.time}`, call: ['time', 'set_value', { entity_id: R.time, time: r.time + ':00' }] });
@@ -141,7 +142,9 @@ class DeyeScreenCard extends HTMLElement {
     const el = ev.target, k = el.dataset.k, i = el.dataset.i, d = this._wmD;
     if (!k || !d) return;
     const v = el.type === 'checkbox' ? el.checked : el.value;
+    if (el.dataset.set) { d[k] = el.dataset.set; this._wmMsg = ''; return this._wmRender(); }   // радіо (Work mode) і Batt/Load First
     if (i !== undefined) d.rows[+i][k] = v; else d[k] = v;
+    if (k === 'sell') this._ov.querySelectorAll('input[data-k="sell"]').forEach(x => { x.checked = v; });   // обидва Solar Sell — один параметр
     this._wmMsg = ''; this._wmRenderFoot();
   }
   async _wmClick(ev) {
@@ -188,13 +191,16 @@ class DeyeScreenCard extends HTMLElement {
       body = `<div class="wmconf"><b>Записати в інвертор?</b><ul>${this._wmChanges().map(c => `<li>${c.label}</li>`).join('')}</ul>
         <div class="wmhint">✔ — записати, ✖ — повернутись до правки</div></div>`;
     } else if (this._wmPage === 1) {
-      body = `<table class="wm1">
-        <tr><td>Work mode</td><td>${selb('work_mode', E.work_mode, d.work_mode)}</td></tr>
-        <tr><td>Energy pattern</td><td>${selb('pattern', E.pattern, d.pattern)}</td></tr>
-        <tr><td>Zero export, W</td><td>${num('zero', d.zero)}</td></tr>
-        <tr><td>${chk('sell', d.sell)} Solar sell, W</td><td>${num('sell_power', d.sell_power, undefined, 80)}</td></tr>
-        <tr><td>${chk('peak', d.peak)} Grid peak shaving, W</td><td>${num('peak_power', d.peak_power, undefined, 80)}</td></tr>
-      </table>`;
+      const radio = (opt, label) => `<label class="rd"><input type="radio" name="wmode" data-k="work_mode" data-set="${opt}"${d.work_mode === opt ? ' checked' : ''}${opts(E.work_mode).includes(opt) ? '' : ' disabled'}> ${label}</label>`;
+      const pat = (opt, label) => `<label class="ck"><input type="checkbox" data-k="pattern" data-set="${opt}"${d.pattern === opt ? ' checked' : ''}> ${label}</label>`;
+      body = `<div class="wm1g">
+        ${radio('Export First', 'Selling First')}<div class="r">${d.maxsolar !== undefined ? `${num('maxsolar', d.maxsolar, undefined, 70)}<span>W Max Solar Power</span>` : ''}</div>
+        ${radio('Zero Export To Load', 'Zero Export To Load')}<div class="r"><label class="ck">${chk('sell', d.sell)} Solar Sell</label></div>
+        ${radio('Zero Export To CT', 'Zero Export To CT')}<div class="r"><label class="ck">${chk('sell', d.sell)} Solar Sell</label></div>
+        <div class="row2"><span>Max Sell Power</span>${num('sell_power', d.sell_power, undefined, 64)}<span>Zero-export Power</span>${num('zero', d.zero, undefined, 52)}</div>
+        <div class="row2"><span>Energy pattern</span>${pat('Battery First', 'Batt First')}${pat('Load First', 'Load First')}</div>
+        <div class="row2"><label class="ck">${chk('peak', d.peak)} Grid Peak Shaving</label>${num('peak_power', d.peak_power, undefined, 64)}<span>W Power</span></div>
+      </div>`;
     } else {
       body = `<div class="tou">${d.tou === null ? '' : `<label>${chk('tou', d.tou)} Time Of Use</label>`}</div>
       <table class="wm2"><tr><th>Grid<br>Charge</th><th>Gen</th><th colspan="2">Time</th><th>Power</th><th>Batt</th></tr>
@@ -215,7 +221,11 @@ class DeyeScreenCard extends HTMLElement {
       #ov table{border-collapse:separate;border-spacing:4px 5px;margin:auto}
       #ov th{font-weight:400;font-size:12px;color:#d9e4ff}
       #ov td{text-align:center;color:#fff}
-      #ov .wm1 td:first-child{text-align:left;padding-right:10px}
+      #ov .wm1g{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;align-items:center;padding:2px 4px}
+      #ov .wm1g .r{display:flex;align-items:center;gap:6px}
+      #ov .wm1g .row2{grid-column:1/-1;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+      #ov .rd,#ov .ck{display:flex;align-items:center;gap:6px;white-space:nowrap}
+      #ov input[type=radio]{width:20px;height:20px;accent-color:#5aa0ff}
       #ov input[type=time],#ov input[type=number],#ov select{background:#eef4ff;color:#111;border:1px solid #9fb6e6;border-radius:2px;padding:4px;font:14px Arial}
       #ov input[type=checkbox]{width:22px;height:22px;accent-color:#5aa0ff}
       #ov .end{display:inline-block;background:#dfe8fb;color:#333;padding:5px 6px;border-radius:2px;min-width:44px}
