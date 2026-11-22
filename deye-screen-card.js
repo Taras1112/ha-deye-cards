@@ -153,7 +153,7 @@ class DeyeScreenCard extends HTMLElement {
     const ln = (d, act, rev) => `<path d="${d}" class="ln${act ? ' act' : ''}"/>` + (act ? [0, 0.5].map(k =>
       `<circle r="3.2" class="run" style="offset-path:path('${d}');animation-delay:-${(phase + k * DUR).toFixed(2)}s;animation-direction:${rev ? 'reverse' : 'normal'}"/>`).join('') : '');
     const ar = (x, y, rot, act) => act ? `<path transform="translate(${x} ${y}) rotate(${rot})" d="M-5 -4.5 L0.5 0 L-5 4.5" class="arr"/>` : '';
-    const dot = (x, y, act) => act ? `<circle cx="${x}" cy="${y}" r="3" class="dot"/>` : '';
+    const dot = () => '';   // статичних крапок на згинах немає — лише ті, що бігають
     const led = (name, on, cls, ent) => `<div class="led${ent ? ' lamp' : ''}"${ent ? ` data-e="${ent}"` : ''}><i class="${on ? cls : ''}"></i><span>${name}</span></div>`;
     const S = { sx: 100, gx: 380, ty: 112, by: 247, ox: 240, oy: 177 };
     const screen = `<svg viewBox="0 0 480 320">
