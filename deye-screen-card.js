@@ -82,7 +82,7 @@ class DeyeScreenCard extends HTMLElement {
     const soc = c.battery_soc ? Math.round(this._v(c.battery_soc)) : null;
     const ac = c.grid_status ? this._on(c.grid_status) : Math.abs(grid) > 5;
     const alarm = c.alarm ? this._on(c.alarm) : false;
-    const dc = pv > 5 || soc !== null;
+    const dc = pv > 5;   // як на інверторі: DC світиться лише коли панелі дають енергію
     const key = [pv, bat, grid, load, soc, ac, alarm].join('|');
     if (key === this._key) return;
     this._key = key;

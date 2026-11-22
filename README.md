@@ -101,7 +101,7 @@ max: 8000
 
 \* If omitted — detected automatically.
 
-The **AC** LED is lit while **the grid is present** and goes dark during an outage. The **DC** LED is lit when there is solar power or a battery is configured; **Normal** — when there is no alarm.
+The **AC** LED is lit while **the grid is present** and goes dark during an outage. The **DC** LED is lit only while the panels produce power (as on the inverter); **Normal** — when there is no alarm.
 
 > If the battery or grid arrow points the wrong way, add `invert_battery: true` or `invert_grid: true`.
 
