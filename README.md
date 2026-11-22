@@ -19,30 +19,33 @@ House colour variants:
 
 ## Installation
 
-### Option 1 — manual
+Both cards ship **in a single file** `ha-deye-cards.js`. Install once, then pick the one you want in "Add card":
+- **Deye inverter screen**;
+- **Coloured house**.
 
-1. Copy the files to `/config/www/deye-cards/` (File editor, Samba or Studio Code Server):
-   - `deye-screen-card.js`
-   - `home-flow-styled.js` (only if you want the coloured house)
-2. **Settings → Dashboards → ⋮ → Resources → Add resource**, type **JavaScript module**:
-   - `/local/deye-cards/deye-screen-card.js`
-   - `/local/deye-cards/home-flow-styled.js`
-3. Reload the page with **Ctrl+F5**. In the HA mobile app: App settings → Troubleshooting → Reset frontend cache.
-
-### Option 2 — Marketplace (Home Assistant 2026+)
+### Option 1 — Marketplace (Home Assistant 2026+)
 
 HACS is now built into Home Assistant as **Marketplace** (sidebar → Marketplace, or `/marketplace`).
 
-1. Marketplace → ⋮ → **Add from GitHub link** → `https://github.com/Taras1112/ha-deye-cards` → Add → install.
-   This installs `deye-screen-card`; add `home-flow-styled.js` manually as in option 1.
-2. Older HA with HACS: HACS → ⋮ → Custom repositories → same URL, type **Dashboard**.
+1. Marketplace → ⋮ → **Add from GitHub link** → `https://github.com/Taras1112/ha-deye-cards` → Add → **Install**.
+2. For the house, also install **Home Flow Card** by **flixlix** (*"Your own little isometric home…"*) from the Marketplace.
+   > ⚠️ There is another card with the same name by `rosenrot00` (a flow editor) — that is **not** the house.
+3. Reload the page (**Ctrl+F5**).
 
-### The house (home-flow-card)
+Older HA with HACS: HACS → ⋮ → Custom repositories → same URL, type **Dashboard**.
 
-`home-flow-styled` needs the isometric house card by **flixlix**. It is already in the Marketplace:
-Marketplace → search **Home Flow Card** → pick the one by **flixlix** (*"Your own little isometric home…"*) → install.
+### Option 2 — manual
 
-> ⚠️ There is another card with the same name by `rosenrot00` (a flow editor) — that is **not** the house.
+1. Copy to `/config/www/deye-cards/` either the single `ha-deye-cards.js` (both cards) or only the one you need:
+   - `deye-screen-card.js` — Deye screen only;
+   - `home-flow-styled.js` — house only (also needs flixlix/home-flow-card).
+2. **Settings → Dashboards → ⋮ → Resources → Add resource**, type **JavaScript module**, e.g. `/local/deye-cards/ha-deye-cards.js`.
+3. Reload with **Ctrl+F5**. In the HA mobile app: App settings → Troubleshooting → Reset frontend cache.
+
+### Adding a card
+
+Dashboard → ✏️ Edit → **Add card** → search for **Deye** or **house** → pick it.
+The card finds your inverter sensors automatically (`sensor.<name>_pv_power`, `_battery_power`, `_battery`, `_grid_power`, `_load_power`) — if yours are named differently, fix them in the card's YAML editor.
 
 ---
 
@@ -106,7 +109,7 @@ Ready-made palettes are in [examples/palettes.md](examples/palettes.md), full ex
 
 ## Dashboard layout (sections)
 
-Cards side by side on a PC, stacked on iPad / phone:
+Side by side on screens ≥ 1024 px, stacked on iPad / phone:
 
 ```yaml
 type: grid
@@ -114,12 +117,18 @@ column_span: 4
 cards:
   - type: heading
     heading: Energy flow
-  - type: custom:home-flow-styled
-    grid_options: {columns: 24}
-    # ...
-  - type: custom:deye-screen-card
-    grid_options: {columns: 24}
-    # ...
+  - type: horizontal-stack          # PC: side by side
+    grid_options: {columns: full}
+    visibility: [{condition: screen, media_query: "(min-width: 1024px)"}]
+    cards:
+      - type: custom:home-flow-styled   # …
+      - type: custom:deye-screen-card   # …
+  - type: vertical-stack            # iPad / phone: stacked
+    grid_options: {columns: full}
+    visibility: [{condition: screen, media_query: "(max-width: 1023px)"}]
+    cards:
+      - type: custom:home-flow-styled   # …
+      - type: custom:deye-screen-card   # …
 ```
 
 ## License

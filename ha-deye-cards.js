@@ -1,0 +1,216 @@
+// ha-deye-cards — обидві картки в одному файлі (для Магазину/HACS). Both cards in one file.
+// Картка «як інвертор Deye»: корпус з логотипом і лампочками DC/AC/Normal/Alarm, екран із 4 шкалами навколо «ON».
+// Конфіг: solar, battery, battery_soc, grid, load — сутності у W; max — межа шкали у W (типово 8000);
+//   grid_status — binary_sensor наявності мережі (лампочка AC); alarm — binary_sensor/сенсор аварії (лампочка Alarm);
+//   frame: false — лише екран без корпусу.
+// Знаки як в інверторі: battery > 0 — розряд (в інвертор), grid > 0 — купівля (в інвертор).
+
+// Пошук сенсорів Deye/Solarman за суфіксами: <prefix>_pv_power, _battery_power, _battery, _grid_power, _load_power
+function deyeDetect(hass) {
+  const ids = Object.keys(hass.states);
+  const pv = ids.find(e => /^sensor\..+_pv_power$/.test(e) && !/pv\d_power$/.test(e));
+  const p = pv ? pv.slice(7, -'_pv_power'.length) : 'deye';
+  const has = e => (hass.states[e] ? e : undefined);
+  return { p, solar: has(`sensor.${p}_pv_power`) || 'sensor.deye_pv_power', battery: has(`sensor.${p}_battery_power`),
+    battery_soc: has(`sensor.${p}_battery`), grid: has(`sensor.${p}_grid_power`) || 'sensor.deye_grid_power',
+    load: has(`sensor.${p}_load_power`) || 'sensor.deye_load_power', grid_status: has(`binary_sensor.${p}_grid`),
+    alarm: has(`sensor.${p}_device_state`) };
+}
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+class DeyeScreenCard extends HTMLElement {
+  setConfig(c) {
+    if (!c.solar || !c.grid || !c.load) throw new Error('Потрібні solar, grid, load');
+    this._c = Object.assign({ max: 8000, frame: true }, c);
+    if (!this.shadowRoot) this.attachShadow({ mode: 'open' });
+    this._key = null;
+  }
+  static getStubConfig(hass) {
+    const d = deyeDetect(hass), c = { max: 8000 };
+    for (const k of ['solar', 'battery', 'battery_soc', 'grid', 'load', 'grid_status', 'alarm']) if (d[k]) c[k] = d[k];
+    return c;
+  }
+  getCardSize() { return 6; }
+  getGridOptions() { return { columns: 12, rows: 'auto' }; }
+  connectedCallback() { this._tick = setInterval(() => this._clock(), 1000); }
+  disconnectedCallback() { clearInterval(this._tick); }
+  _clock() {
+    const n = new Date(), p = x => String(x).padStart(2, '0');
+    const t = this.shadowRoot && this.shadowRoot.getElementById('dt');
+    if (t) t.textContent = `${p(n.getMonth() + 1)}/${p(n.getDate())}/${n.getFullYear()} ${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`;
+    const d = this.shadowRoot && this.shadowRoot.getElementById('dw');
+    if (d) d.textContent = DAYS[n.getDay()];
+  }
+  _v(e) { const s = e && this._hass.states[e]; const n = s ? parseFloat(s.state) : NaN; return isNaN(n) ? 0 : n; }
+  _on(e) { const s = e && this._hass.states[e]; return !!s && ['on', 'true', 'problem', 'alarm', 'fault'].includes(String(s.state).toLowerCase()); }
+  set hass(h) {
+    this._hass = h;
+    const c = this._c, max = c.max;
+    const pv = Math.max(0, this._v(c.solar)), bat = this._v(c.battery), grid = this._v(c.grid), load = Math.max(0, this._v(c.load));
+    const soc = c.battery_soc ? Math.round(this._v(c.battery_soc)) : null;
+    const ac = c.grid_status ? this._on(c.grid_status) : Math.abs(grid) > 5;
+    const alarm = c.alarm ? this._on(c.alarm) : false;
+    const dc = pv > 5 || soc !== null;
+    const key = [pv, bat, grid, load, soc, ac, alarm].join('|');
+    if (key === this._key) return;
+    this._key = key;
+    const kw = w => (Math.abs(w) / 1000).toFixed(2);
+    const R = 47, SW = 12, A0 = 140, SWEEP = 260;
+    const pt = (cx, cy, a) => [cx + R * Math.cos(a * Math.PI / 180), cy + R * Math.sin(a * Math.PI / 180)];
+    const arc = (cx, cy, from, to) => { const [x1, y1] = pt(cx, cy, from), [x2, y2] = pt(cx, cy, to); return `M${x1.toFixed(1)} ${y1.toFixed(1)} A${R} ${R} 0 ${to - from > 180 ? 1 : 0} 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`; };
+    const D = '#2a3038', BG = '#eef1f3';
+    const I = {
+      // сонце з променями + панель 4×3 на стійці
+      sun: `<g transform="scale(.86) translate(-37 -33)">
+<circle cx="20" cy="17" r="9" fill="none" stroke="${D}" stroke-width="2.4"/><circle cx="20" cy="17" r="5.2" fill="none" stroke="${D}" stroke-width="1.6"/>
+<path stroke="${D}" stroke-width="2.4" stroke-linecap="round" d="M18.9 4.5 L18.5 0.1 M10.4 9.0 L7.0 6.1 M7.5 18.1 L3.1 18.5 M12.0 26.6 L9.1 30.0 M21.1 29.5 L21.5 33.9 M29.6 25.0 L33.0 27.9 M32.5 15.9 L36.9 15.5"/>
+<path d="M31 25 L67 25 L71 49 L19 49Z" fill="${D}" stroke="${BG}" stroke-width="3" paint-order="stroke"/>
+<path stroke="${BG}" stroke-width="1.8" fill="none" d="M40.0 25 L32.0 49 M49.0 25 L45.0 49 M58.0 25 L58.0 49 M27.0 33.0 H68.3 M23.0 41.0 H69.7"/>
+<path fill="${D}" d="M43 49h4.5v9H43z M33 57.5h24.5v3.5H33z"/></g>`,
+      // батарея з блискавкою
+      bat: `<g transform="translate(-27 -2)">
+        <rect x="2" y="2" width="44" height="24" rx="4" fill="none" stroke="${D}" stroke-width="3.2"/>
+        <rect x="46.5" y="9" width="5" height="10" rx="1.5" fill="${D}"/>
+        <path fill="${D}" d="M33 6 15.5 15.5l9 .8L14 22.5l20-9.2-9.2-.8z"/></g>`,
+      // опора ЛЕП з проводами
+      grid: `<g transform="scale(.86) translate(-35 -34)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+<path stroke="#8d90b8" stroke-width="1.3" d="M18 18 L0 25 M18 18 L2 33 M11 30 L0 40 M11 30 L3 47 M52 18 L70 25 M52 18 L68 33 M59 30 L70 40 M59 30 L67 47"/>
+<path stroke="${D}" stroke-width="2.6" d="M35 3 L24 62 M35 3 L46 62 M20 62 H50"/>
+<path stroke="${D}" stroke-width="2.2" d="M18 14 H52 M18 14 L33.7 10 M52 14 L36.3 10 M11 25 H59 M11 25 L31.8 20 M59 25 L38.2 20"/>
+<path stroke="${D}" stroke-width="2.4" d="M18 14 v4 M52 14 v4 M11 25 v5 M59 25 v5 M35 3 v-1"/>
+<path stroke="${D}" stroke-width="1.5" d="M32.9 14 L38.9 24 M37.1 14 L31.1 24 M31.1 24 H38.9 M31.1 24 L41.2 36 M38.9 24 L28.8 36 M28.8 36 H41.2 M28.8 36 L43.4 48 M41.2 36 L26.6 48 M26.6 48 H43.4 M26.6 48 L46.0 62 M43.4 48 L24.0 62 M24.0 62 H46.0"/></g>`,
+      // будинок з димарем і вікном
+      home: `<g transform="translate(-31 -26)">
+        <path fill="none" stroke="${D}" stroke-width="3.2" stroke-linejoin="round" d="M4 25 31 4l27 21"/>
+        <path fill="${D}" d="M42 6h6v11l-6-4.6z"/>
+        <path fill="${D}" d="M11 25 31 9.5 51 25v24H11z"/>
+        <rect x="23" y="28" width="16" height="15" fill="${BG}"/><path stroke="${D}" stroke-width="2.4" d="M31 28v15"/>
+        <path stroke="${D}" stroke-width="3" d="M2 51h58"/></g>`,
+    };
+    const gauge = (cx, cy, w, icon) => {
+      const f = Math.min(Math.abs(w) / max, 1), end = A0 + SWEEP * f, [kx, ky] = pt(cx, cy, end);
+      return `<path d="${arc(cx, cy, A0, A0 + SWEEP)}" class="track"/>` +
+        (f > 0.004 ? `<path d="${arc(cx, cy, A0, end)}" class="fill"/>` : '') +
+        `<circle cx="${kx.toFixed(1)}" cy="${ky.toFixed(1)}" r="4.5" class="knob"/>` +
+        `<g transform="translate(${cx} ${cy - 2})">${icon}</g>` +
+        `<text x="${cx - 60}" y="${cy + 44}" class="sc">0</text><text x="${cx + 60}" y="${cy + 44}" class="sc">${(max / 1000).toFixed(1)}</text>` +
+        `<text x="${cx}" y="${cy + 43}" class="val">${kw(w)}</text><text x="${cx}" y="${cy + 53}" class="unit">kW</text>`;
+    };
+    const pvIn = pv > 5, batIn = bat > 5, batOut = bat < -5, gridIn = grid > 5, gridOut = grid < -5, loadOut = load > 5;
+    const ln = (d, act, rev) => `<path d="${d}" class="ln${act ? ' act' : ''}${rev ? ' rev' : ''}"/>`;
+    const ar = (x, y, rot, act) => act ? `<path transform="translate(${x} ${y}) rotate(${rot})" d="M-5 -4.5 L0.5 0 L-5 4.5" class="arr"/>` : '';
+    const dot = (x, y, act) => act ? `<circle cx="${x}" cy="${y}" r="3" class="dot"/>` : '';
+    const led = (name, on, cls) => `<div class="led"><i class="${on ? cls : ''}"></i><span>${name}</span></div>`;
+    const S = { sx: 100, gx: 380, ty: 112, by: 247, ox: 240, oy: 177 };
+    const screen = `<svg viewBox="0 0 480 320">
+  <text id="dt" x="232" y="33" class="hdr" text-anchor="middle"></text>
+  <text id="dw" x="400" y="33" class="hdr" text-anchor="end"></text>
+  <g transform="translate(424 27)"><path class="gear" d="M-2.2-12h4.4l.8 3.4 2.6 1.1 3-1.8 3.1 3.1-1.8 3 1.1 2.6 3.4.8v4.4l-3.4.8-1.1 2.6 1.8 3-3.1 3.1-3-1.8-2.6 1.1-.8 3.4h-4.4l-.8-3.4-2.6-1.1-3 1.8-3.1-3.1 1.8-3-1.1-2.6-3.4-.8v-4.4l3.4-.8 1.1-2.6-1.8-3 3.1-3.1 3 1.8 2.6-1.1z"/><circle r="4.6" fill="#eef1f3"/></g>
+  ${gauge(S.sx, S.ty, pv, I.sun)}
+  ${gauge(S.sx, S.by, bat, I.bat)}
+  ${soc !== null ? `<text x="${S.sx}" y="${S.by - 10}" class="soc">${soc}%</text>` : ''}
+  ${gauge(S.gx, S.ty, grid, I.grid)}
+  ${gauge(S.gx, S.by, load, I.home)}
+  ${ln(`M152 ${S.ty} H186 V${S.oy - 8} H206`, pvIn)}${ar(208, S.oy - 8, 0, pvIn)}${dot(186, S.oy - 8, pvIn)}
+  ${ln(`M152 ${S.by} H186 V${S.oy + 8} H206`, batIn || batOut, batOut)}${ar(208, S.oy + 8, 0, batIn)}${ar(158, S.by, 180, batOut)}${dot(186, S.oy + 8, batIn || batOut)}
+  ${ln(`M328 ${S.ty} H294 V${S.oy - 8} H274`, gridIn || gridOut, gridOut)}${ar(272, S.oy - 8, 180, gridIn)}${ar(322, S.ty, 0, gridOut)}${dot(294, S.oy - 8, gridIn || gridOut)}
+  ${ln(`M268 ${S.oy + 8} H294 V${S.by} H322`, loadOut)}${ar(324, S.by, 0, loadOut)}${dot(294, S.by, loadOut)}
+  <circle cx="${S.ox}" cy="${S.oy}" r="25" class="on"/><text x="${S.ox}" y="${S.oy + 7}" class="ontx">ON</text>
+</svg>`;
+    this.shadowRoot.innerHTML = `
+<style>
+  :host{display:block}
+  ha-card{overflow:hidden;padding:0}
+  .dev{background:radial-gradient(ellipse at 50% 30%,#e9eaea 0%,#d3d5d6 55%,#b9bcbe 100%);padding:16px 7% 22px;text-align:center}
+  .logo{font:700 38px/1 "Arial Rounded MT Bold",Arial,sans-serif;color:#1d6f7a;letter-spacing:-1px;margin:2px 0 14px;position:relative;display:inline-block}
+  .logo b{position:absolute;left:1px;top:-3px;width:7px;height:7px;background:#d8282f;border-radius:1px}
+  .leds{display:flex;justify-content:space-between;margin:0 6% 10px}
+  .led{display:flex;flex-direction:column;align-items:center;gap:4px}
+  .led i{width:17px;height:17px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#3a3f44,#121416);box-shadow:inset 0 0 0 2px #2a2e32,0 1px 1px #fff8}
+  .led i.g{background:radial-gradient(circle at 40% 35%,#d9ffd0,#3cff2e 45%,#16a312);box-shadow:0 0 8px 2px #4dff3a99,inset 0 0 0 2px #1c7f16}
+  .led i.r{background:radial-gradient(circle at 40% 35%,#ffd6d0,#ff3a2e 45%,#b3160f);box-shadow:0 0 8px 2px #ff3a2e99,inset 0 0 0 2px #7f1c16}
+  .led span{font:700 13px Arial,sans-serif;color:#1d4f5a}
+  .bezel{background:#16191c;border-radius:10px;padding:9px;box-shadow:0 2px 6px #0006}
+  .noframe .bezel{border-radius:12px}
+  .scr{background:#eef1f3;border-radius:3px}
+  svg{width:100%;height:auto;display:block}
+  .track{fill:none;stroke:#2a3038;stroke-width:${SW}}
+  .fill{fill:none;stroke:#2fc23c;stroke-width:${SW}}
+  .knob{fill:#2fc23c;stroke:#eef1f3;stroke-width:1.2}
+  .icf{fill:#2a3038}
+  .val{font:700 19px Arial,sans-serif;fill:#2fb83a;text-anchor:middle}
+  .unit{font:700 9px Arial,sans-serif;fill:#2a3038;text-anchor:middle}
+  .sc{font:12px Arial,sans-serif;fill:#3a4048;text-anchor:middle}
+  .soc{font:700 18px Arial,sans-serif;fill:#2fb83a;text-anchor:middle}
+  .hdr{font:15px Arial,sans-serif;fill:#14181c}
+  .gear{fill:#3d6fae}
+  .ln{fill:none;stroke:#2a3038;stroke-width:1.5;stroke-dasharray:2.5 3;opacity:.35}
+  .ln.act{opacity:1;animation:flow .8s linear infinite}
+  .ln.act.rev{animation-direction:reverse}
+  @keyframes flow{to{stroke-dashoffset:-11}}
+  .arr{fill:none;stroke:#2a3038;stroke-width:1.6;stroke-dasharray:2 1.6;stroke-linecap:round}
+  .on{fill:#fff;stroke:#2fc23c;stroke-width:3}
+  .ontx{font:700 17px Arial,sans-serif;fill:#2fb83a;text-anchor:middle}
+  .dot{fill:#2fc23c}
+</style>
+<ha-card><div class="${c.frame ? 'dev' : 'noframe'}">
+  ${c.frame ? `<div class="logo"><b></b>Deye</div>
+  <div class="leds">${led('DC', dc, 'g')}${led('AC', ac, 'g')}${led('Normal', !alarm, 'g')}${led('Alarm', alarm, 'r')}</div>` : ''}
+  <div class="bezel"><div class="scr">${screen}</div></div>
+</div></ha-card>`;
+    this._clock();
+  }
+}
+if (!customElements.get('deye-screen-card')) customElements.define('deye-screen-card', DeyeScreenCard);
+window.customCards = window.customCards || [];
+if (!window.customCards.some(c => c.type === 'deye-screen-card'))
+  window.customCards.push({ type: 'deye-screen-card', name: 'Deye — екран інвертора / Deye inverter screen',
+    description: 'Копія екрана Deye: 4 шкали навколо ON, лампочки DC/AC/Normal/Alarm. Replica of the Deye inverter display.', preview: true });
+
+// Обгортка над home-flow-card: фарбує будиночок через CSS-змінні --house-*.
+// Конфіг: { type: custom:home-flow-styled, vars: { wall: '#..', roof: '#..', ... }, background: '...', card: { ...конфіг home-flow-card } }
+// Палітра «Цегла й черепиця» (типова)
+const BRICK = { wall: '#f3e2c4', 'wall-top': '#f8ecd6', gable: '#e6cfa8', 'gable-top': '#ecd8b6', fascia: '#fff7ea', roof: '#b4553a',
+  'roof-back': '#8f3f2a', panel: '#2b4a7e', 'panel-top': '#3a5d96', 'panel-seam': '#8fb0de', ground: '#d5eabf',
+  shadow: 'rgba(60,90,40,.25)', 'box-front': '#ffffff', 'box-side': '#dfe3ea' };
+class HomeFlowStyled extends HTMLElement {
+  setConfig(config) {
+    this._config = config;
+    customElements.whenDefined('home-flow-card').then(() => this._build());
+    clearTimeout(this._miss);
+    this._miss = setTimeout(() => {
+      if (!customElements.get('home-flow-card') && !this._inner) this.innerHTML =
+        '<ha-card style="padding:16px">Потрібна картка <b>Home Flow Card</b> від <b>flixlix</b> — встанови її з Магазину (Marketplace).<br>Requires <b>Home Flow Card</b> by <b>flixlix</b> — install it from the Marketplace.</ha-card>';
+    }, 4000);
+  }
+  _build() {
+    const config = this._config;
+    if (!this._inner) {
+      this.innerHTML = '';
+      this._inner = document.createElement('home-flow-card');
+      this.appendChild(this._inner);
+    }
+    this._inner.setConfig(config.card || {});
+    for (const [k, v] of Object.entries(config.vars || {})) this._inner.style.setProperty('--house-' + k, v);
+    if (config.background) {
+      this._inner.style.setProperty('--ha-card-background', config.background);
+      this._inner.style.setProperty('--card-background-color', config.background);
+    }
+    if (this._hass) this._inner.hass = this._hass;
+  }
+  set hass(h) { this._hass = h; if (this._inner) this._inner.hass = h; }
+  static getStubConfig(hass) {
+    const ids = Object.keys(hass.states);
+    const pv = ids.find(e => /^sensor\..+_pv_power$/.test(e) && !/pv\d_power$/.test(e));
+    const p = pv ? pv.slice(7, -'_pv_power'.length) : 'deye';
+    const card = { solar: { entity: `sensor.${p}_pv_power` }, grid: { entity: `sensor.${p}_grid_power` }, home: { entity: `sensor.${p}_load_power` } };
+    if (hass.states[`sensor.${p}_battery_power`]) card.battery = { entity: `sensor.${p}_battery_power`, state_of_charge: `sensor.${p}_battery` };
+    return { background: 'linear-gradient(180deg,#dff1ff 0%,#f6fbff 60%,#eef7e6 100%)', vars: BRICK, card };
+  }
+  getCardSize() { return 6; }
+  getGridOptions() { return { columns: 12, rows: 'auto' }; }
+}
+if (!customElements.get('home-flow-styled')) customElements.define('home-flow-styled', HomeFlowStyled);
+window.customCards = window.customCards || [];
+if (!window.customCards.some(c => c.type === 'home-flow-styled'))
+  window.customCards.push({ type: 'home-flow-styled', name: 'Будиночок кольоровий / Coloured house',
+    description: 'Кольоровий ізометричний будиночок (потрібна flixlix/home-flow-card). Coloured isometric house (needs flixlix/home-flow-card).', preview: true });

@@ -3,6 +3,18 @@
 //   grid_status — binary_sensor наявності мережі (лампочка AC); alarm — binary_sensor/сенсор аварії (лампочка Alarm);
 //   frame: false — лише екран без корпусу.
 // Знаки як в інверторі: battery > 0 — розряд (в інвертор), grid > 0 — купівля (в інвертор).
+
+// Пошук сенсорів Deye/Solarman за суфіксами: <prefix>_pv_power, _battery_power, _battery, _grid_power, _load_power
+function deyeDetect(hass) {
+  const ids = Object.keys(hass.states);
+  const pv = ids.find(e => /^sensor\..+_pv_power$/.test(e) && !/pv\d_power$/.test(e));
+  const p = pv ? pv.slice(7, -'_pv_power'.length) : 'deye';
+  const has = e => (hass.states[e] ? e : undefined);
+  return { p, solar: has(`sensor.${p}_pv_power`) || 'sensor.deye_pv_power', battery: has(`sensor.${p}_battery_power`),
+    battery_soc: has(`sensor.${p}_battery`), grid: has(`sensor.${p}_grid_power`) || 'sensor.deye_grid_power',
+    load: has(`sensor.${p}_load_power`) || 'sensor.deye_load_power', grid_status: has(`binary_sensor.${p}_grid`),
+    alarm: has(`sensor.${p}_device_state`) };
+}
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 class DeyeScreenCard extends HTMLElement {
   setConfig(c) {
@@ -10,6 +22,11 @@ class DeyeScreenCard extends HTMLElement {
     this._c = Object.assign({ max: 8000, frame: true }, c);
     if (!this.shadowRoot) this.attachShadow({ mode: 'open' });
     this._key = null;
+  }
+  static getStubConfig(hass) {
+    const d = deyeDetect(hass), c = { max: 8000 };
+    for (const k of ['solar', 'battery', 'battery_soc', 'grid', 'load', 'grid_status', 'alarm']) if (d[k]) c[k] = d[k];
+    return c;
   }
   getCardSize() { return 6; }
   getGridOptions() { return { columns: 12, rows: 'auto' }; }
@@ -142,4 +159,8 @@ class DeyeScreenCard extends HTMLElement {
     this._clock();
   }
 }
-customElements.define('deye-screen-card', DeyeScreenCard);
+if (!customElements.get('deye-screen-card')) customElements.define('deye-screen-card', DeyeScreenCard);
+window.customCards = window.customCards || [];
+if (!window.customCards.some(c => c.type === 'deye-screen-card'))
+  window.customCards.push({ type: 'deye-screen-card', name: 'Deye — екран інвертора / Deye inverter screen',
+    description: 'Копія екрана Deye: 4 шкали навколо ON, лампочки DC/AC/Normal/Alarm. Replica of the Deye inverter display.', preview: true });

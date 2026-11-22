@@ -1,5 +1,5 @@
 {
-  "name": "Deye Screen Card",
-  "filename": "deye-screen-card.js",
+  "name": "Deye Cards (inverter screen + coloured house)",
+  "filename": "ha-deye-cards.js",
   "render_readme": true
 }

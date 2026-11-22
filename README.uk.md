@@ -19,30 +19,33 @@
 
 ## Встановлення
 
-### Спосіб 1 — вручну
+Обидві картки лежать **в одному файлі** `ha-deye-cards.js`. Ставиш один раз, а далі у «Додати картку» вибираєш потрібну:
+- **Deye — екран інвертора**;
+- **Будиночок кольоровий**.
 
-1. Скопіюй файли в `/config/www/deye-cards/` (через File editor, Samba або Studio Code Server):
-   - `deye-screen-card.js`
-   - `home-flow-styled.js` (лише якщо потрібен кольоровий будиночок)
-2. **Налаштування → Інформаційні панелі → ⋮ → Ресурси → Додати ресурс**, тип **JavaScript module**:
-   - `/local/deye-cards/deye-screen-card.js`
-   - `/local/deye-cards/home-flow-styled.js`
-3. Онови сторінку з **Ctrl+F5**. На телефоні в застосунку HA: Налаштування застосунку → Налагодження → Очистити кеш фронтенду.
-
-### Спосіб 2 — Магазин (Home Assistant 2026+)
+### Спосіб 1 — Магазин (Home Assistant 2026+)
 
 HACS тепер вбудований у Home Assistant як **Магазин** (Marketplace: бокове меню → Marketplace, або адреса `/marketplace`).
 
-1. Магазин → ⋮ → **Додати з посилання GitHub** → `https://github.com/Taras1112/ha-deye-cards` → Додати → встановити.
-   Так ставиться `deye-screen-card`; `home-flow-styled.js` додай вручну, як у способі 1.
-2. Старіша HA з HACS: HACS → ⋮ → Custom repositories → те саме посилання, тип **Dashboard**.
+1. Магазин → ⋮ → **Додати з посилання GitHub** → `https://github.com/Taras1112/ha-deye-cards` → Додати → **Встановити**.
+2. Для будиночка ще встанови з Магазину картку **Home Flow Card** від **flixlix** (*«Your own little isometric home…»*).
+   > ⚠️ Є ще картка з такою самою назвою від `rosenrot00` (редактор потоків) — це **не** будиночок.
+3. Онови сторінку (**Ctrl+F5**).
 
-### Будиночок (home-flow-card)
+Старіша HA з HACS: HACS → ⋮ → Custom repositories → те саме посилання, тип **Dashboard**.
 
-Для `home-flow-styled` потрібна ізометрична картка будиночка від **flixlix**. Вона вже є в Магазині:
-Магазин → пошук **Home Flow Card** → обрати ту, що від **flixlix** (*«Your own little isometric home…»*) → встановити.
+### Спосіб 2 — вручну
 
-> ⚠️ Є ще картка з такою самою назвою від `rosenrot00` (редактор потоків) — це **не** будиночок. Якщо Магазин пише «rosenrot00/home-flow-card is already in the Marketplace», значить, ти вставив не те посилання.
+1. Скопіюй у `/config/www/deye-cards/` або один файл `ha-deye-cards.js` (обидві картки), або лише потрібний:
+   - `deye-screen-card.js` — тільки екран Deye;
+   - `home-flow-styled.js` — тільки будиночок (потрібна ще flixlix/home-flow-card).
+2. **Налаштування → Інформаційні панелі → ⋮ → Ресурси → Додати ресурс**, тип **JavaScript module**, напр. `/local/deye-cards/ha-deye-cards.js`.
+3. Онови сторінку з **Ctrl+F5**. У застосунку HA на телефоні: Налаштування застосунку → Налагодження → Очистити кеш фронтенду.
+
+### Як додати картку
+
+Дашборд → ✏️ Редагувати → **Додати картку** → у пошуку набери **Deye** або **Будиночок** → обери.
+Картка сама знайде сенсори інвертора (`sensor.<назва>_pv_power`, `_battery_power`, `_battery`, `_grid_power`, `_load_power`) — якщо назви інші, поправ у YAML-редакторі картки.
 
 ---
 
@@ -106,7 +109,7 @@ card:
 
 ## Розкладка на дашборді (sections)
 
-Щоб на ПК картки стояли поруч, а на iPad / телефоні — одна під одною:
+Від 1024 px — поруч, на iPad / телефоні — одна під одною:
 
 ```yaml
 type: grid
@@ -114,12 +117,18 @@ column_span: 4
 cards:
   - type: heading
     heading: Потік енергії
-  - type: custom:home-flow-styled
-    grid_options: {columns: 24}
-    # ...
-  - type: custom:deye-screen-card
-    grid_options: {columns: 24}
-    # ...
+  - type: horizontal-stack          # ПК: поруч
+    grid_options: {columns: full}
+    visibility: [{condition: screen, media_query: "(min-width: 1024px)"}]
+    cards:
+      - type: custom:home-flow-styled   # …
+      - type: custom:deye-screen-card   # …
+  - type: vertical-stack            # iPad / телефон: одна під одною
+    grid_options: {columns: full}
+    visibility: [{condition: screen, media_query: "(max-width: 1023px)"}]
+    cards:
+      - type: custom:home-flow-styled   # …
+      - type: custom:deye-screen-card   # …
 ```
 
 ## Ліцензія
