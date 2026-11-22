@@ -47,14 +47,22 @@ const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 class DeyeScreenCard extends HTMLElement {
   setConfig(c) {
     this._c = Object.assign({ max: 8000, frame: true }, c);   // датчиків може не бути — знайдемо самі
-    if (!this.shadowRoot) this.attachShadow({ mode: 'open' });
+    if (!this.shadowRoot) {
+      this.attachShadow({ mode: 'open' });
+      // натиск на зону (сонце / АКБ / мережа / дім / лампочку) → стандартне вікно HA з графіком цього датчика
+      this.shadowRoot.addEventListener('click', ev => {
+        const z = ev.composedPath().find(n => n.dataset && n.dataset.e);
+        if (z) this.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId: z.dataset.e }, bubbles: true, composed: true }));
+      });
+    }
     this._key = null; this._auto = false;
   }
   static getStubConfig(hass) {
     return Object.assign({ max: 8000 }, deyeDetect(hass));
   }
   getCardSize() { return 6; }
-  getGridOptions() { return { columns: 12, rows: 'auto' }; }
+  getGridOptions() { return { columns: 12, rows: 'auto', min_columns: 6 }; }
+  static getConfigElement() { return document.createElement('deye-screen-card-editor'); }
   connectedCallback() { this._tick = setInterval(() => this._clock(), 1000); }
   disconnectedCallback() { clearInterval(this._tick); }
   _clock() {
@@ -120,30 +128,31 @@ class DeyeScreenCard extends HTMLElement {
         <rect x="23" y="28" width="16" height="15" fill="${BG}"/><path stroke="${D}" stroke-width="2.4" d="M31 28v15"/>
         <path stroke="${D}" stroke-width="3" d="M2 51h58"/></g>`,
     };
-    const gauge = (cx, cy, w, icon) => {
+    const gauge = (cx, cy, w, icon, ent) => {
       const f = Math.min(Math.abs(w) / max, 1), end = A0 + SWEEP * f, [kx, ky] = pt(cx, cy, end);
-      return `<path d="${arc(cx, cy, A0, A0 + SWEEP)}" class="track"/>` +
+      return `<g class="zone"${ent ? ` data-e="${ent}"` : ''}><rect x="${cx - 64}" y="${cy - 56}" width="128" height="116" rx="12" class="hit"/>` +
+        `<path d="${arc(cx, cy, A0, A0 + SWEEP)}" class="track"/>` +
         (f > 0.004 ? `<path d="${arc(cx, cy, A0, end)}" class="fill"/>` : '') +
         `<circle cx="${kx.toFixed(1)}" cy="${ky.toFixed(1)}" r="4.5" class="knob"/>` +
         `<g transform="translate(${cx} ${cy - 2})">${icon}</g>` +
         `<text x="${cx - 60}" y="${cy + 44}" class="sc">0</text><text x="${cx + 60}" y="${cy + 44}" class="sc">${(max / 1000).toFixed(1)}</text>` +
-        `<text x="${cx}" y="${cy + 43}" class="val">${kw(w)}</text><text x="${cx}" y="${cy + 53}" class="unit">kW</text>`;
+        `<text x="${cx}" y="${cy + 43}" class="val">${kw(w)}</text><text x="${cx}" y="${cy + 53}" class="unit">kW</text></g>`;
     };
     const pvIn = pv > 5, batIn = bat > 5, batOut = bat < -5, gridIn = grid > 5, gridOut = grid < -5, loadOut = load > 5;
     const ln = (d, act, rev) => `<path d="${d}" class="ln${act ? ' act' : ''}${rev ? ' rev' : ''}"/>`;
     const ar = (x, y, rot, act) => act ? `<path transform="translate(${x} ${y}) rotate(${rot})" d="M-5 -4.5 L0.5 0 L-5 4.5" class="arr"/>` : '';
     const dot = (x, y, act) => act ? `<circle cx="${x}" cy="${y}" r="3" class="dot"/>` : '';
-    const led = (name, on, cls) => `<div class="led"><i class="${on ? cls : ''}"></i><span>${name}</span></div>`;
+    const led = (name, on, cls, ent) => `<div class="led${ent ? ' lamp' : ''}"${ent ? ` data-e="${ent}"` : ''}><i class="${on ? cls : ''}"></i><span>${name}</span></div>`;
     const S = { sx: 100, gx: 380, ty: 112, by: 247, ox: 240, oy: 177 };
     const screen = `<svg viewBox="0 0 480 320">
   <text id="dt" x="232" y="33" class="hdr" text-anchor="middle"></text>
   <text id="dw" x="400" y="33" class="hdr" text-anchor="end"></text>
   <g transform="translate(424 27)"><path class="gear" d="M-2.2-12h4.4l.8 3.4 2.6 1.1 3-1.8 3.1 3.1-1.8 3 1.1 2.6 3.4.8v4.4l-3.4.8-1.1 2.6 1.8 3-3.1 3.1-3-1.8-2.6 1.1-.8 3.4h-4.4l-.8-3.4-2.6-1.1-3 1.8-3.1-3.1 1.8-3-1.1-2.6-3.4-.8v-4.4l3.4-.8 1.1-2.6-1.8-3 3.1-3.1 3 1.8 2.6-1.1z"/><circle r="4.6" fill="#eef1f3"/></g>
-  ${gauge(S.sx, S.ty, pv, I.sun)}
-  ${gauge(S.sx, S.by, bat, I.bat)}
-  ${soc !== null ? `<text x="${S.sx}" y="${S.by - 10}" class="soc">${soc}%</text>` : ''}
-  ${gauge(S.gx, S.ty, grid, I.grid)}
-  ${gauge(S.gx, S.by, load, I.home)}
+  ${gauge(S.sx, S.ty, pv, I.sun, c.solar)}
+  ${gauge(S.sx, S.by, bat, I.bat, c.battery || c.battery_soc)}
+  ${soc !== null ? `<text x="${S.sx}" y="${S.by - 10}" class="soc zone" data-e="${c.battery_soc}">${soc}%</text>` : ''}
+  ${gauge(S.gx, S.ty, grid, I.grid, c.grid)}
+  ${gauge(S.gx, S.by, load, I.home, c.load)}
   ${ln(`M152 ${S.ty} H186 V${S.oy - 8} H206`, pvIn)}${ar(208, S.oy - 8, 0, pvIn)}${dot(186, S.oy - 8, pvIn)}
   ${ln(`M152 ${S.by} H186 V${S.oy + 8} H206`, batIn || batOut, batOut)}${ar(208, S.oy + 8, 0, batIn)}${ar(158, S.by, 180, batOut)}${dot(186, S.oy + 8, batIn || batOut)}
   ${ln(`M328 ${S.ty} H294 V${S.oy - 8} H274`, gridIn || gridOut, gridOut)}${ar(272, S.oy - 8, 180, gridIn)}${ar(322, S.ty, 0, gridOut)}${dot(294, S.oy - 8, gridIn || gridOut)}
@@ -185,15 +194,74 @@ class DeyeScreenCard extends HTMLElement {
   .on{fill:#fff;stroke:#2fc23c;stroke-width:3}
   .ontx{font:700 17px Arial,sans-serif;fill:#2fb83a;text-anchor:middle}
   .dot{fill:#2fc23c}
+  .zone{cursor:pointer}
+  .hit{fill:transparent;transition:fill .15s}
+  .zone:hover .hit{fill:rgba(47,194,60,.10)}
+  .lamp{cursor:pointer}
 </style>
 <ha-card><div class="${c.frame ? 'dev' : 'noframe'}">
   ${c.frame ? `<div class="logo"><b></b>Deye</div>
-  <div class="leds">${led('DC', dc, 'g')}${led('AC', ac, 'g')}${led('Normal', !alarm, 'g')}${led('Alarm', alarm, 'r')}</div>` : ''}
+  <div class="leds">${led('DC', dc, 'g', c.solar)}${led('AC', ac, 'g', c.grid_status)}${led('Normal', !alarm, 'g', c.alarm)}${led('Alarm', alarm, 'r', c.alarm)}</div>` : ''}
   <div class="bezel"><div class="scr">${screen}</div></div>
 </div></ha-card>`;
     this._clock();
   }
 }
+
+
+// Простий редактор на звичайних списках — не залежить від лінивого завантаження вибирачів HA.
+function simpleEditorStyle() {
+  return `<style>
+    .f{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;font:14px var(--paper-font-body1_-_font-family,system-ui,sans-serif);color:var(--primary-text-color)}
+    .f>*{min-width:0}
+    .f label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--secondary-text-color)}
+    .f .w{grid-column:1/-1}
+    .f select,.f input[type=number]{width:100%;box-sizing:border-box;font-size:14px;padding:8px;border-radius:6px;border:1px solid var(--divider-color,#ccc);background:var(--card-background-color,#fff);color:var(--primary-text-color)}
+    .f .chk{flex-direction:row;align-items:center;gap:8px;font-size:14px;color:var(--primary-text-color)}
+    .f .hint{grid-column:1/-1;font-size:12px;color:var(--secondary-text-color)}
+  </style>`;
+}
+function entityOptions(hass, filter, current) {
+  const ids = Object.keys(hass.states).filter(id => filter(id, hass.states[id])).sort();
+  if (current && !ids.includes(current)) ids.unshift(current);
+  const name = id => { const f = hass.states[id] && hass.states[id].attributes.friendly_name; return f ? `${f} — ${id}` : id; };
+  return '<option value="">— автоматично —</option>' + ids.map(id => `<option value="${id}"${id === current ? ' selected' : ''}>${name(id)}</option>`).join('');
+}
+const isPower = (id, s) => id.startsWith('sensor.') && ['W', 'kW'].includes(s.attributes.unit_of_measurement);
+const isPct = (id, s) => id.startsWith('sensor.') && s.attributes.unit_of_measurement === '%';
+const isStatus = (id, s) => id.startsWith('binary_sensor.') || (id.startsWith('sensor.') && !s.attributes.unit_of_measurement && isNaN(parseFloat(s.state)));
+
+// Візуальний редактор: датчики зі списку, шкала, перемикачі — без YAML.
+class DeyeScreenCardEditor extends HTMLElement {
+  setConfig(c) { this._c = Object.assign({}, c); this._render(); }
+  set hass(h) { const first = !this._hass; this._hass = h; if (first) this._render(); }
+  _emit() { this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._c }, bubbles: true, composed: true })); }
+  _render() {
+    if (!this._hass || !this._c) return;
+    const c = this._c, h = this._hass;
+    const sel = (k, label, f, wide) => `<label class="${wide ? 'w' : ''}">${label}<select data-k="${k}">${entityOptions(h, f, c[k])}</select></label>`;
+    const chk = (k, label, def) => `<label class="chk"><input type="checkbox" data-k="${k}"${(c[k] ?? def) ? ' checked' : ''}>${label}</label>`;
+    this.innerHTML = simpleEditorStyle() + `<div class="f">
+      <div class="hint">Порожні поля («автоматично») картка заповнить сама — знайде датчики інвертора.</div>
+      ${sel('solar', 'Сонце — потужність панелей', isPower, true)}
+      ${sel('battery', 'Батарея — потужність (+ розряд)', isPower)}${sel('battery_soc', 'Батарея — заряд, %', isPct)}
+      ${sel('grid', 'Мережа — потужність (+ купівля)', isPower)}${sel('load', 'Споживання будинку', isPower)}
+      ${sel('grid_status', 'Наявність мережі (лампочка AC)', isStatus)}${sel('alarm', 'Стан інвертора (лампочка Alarm)', isStatus)}
+      <label>Шкала, кВт (0 … N)<input type="number" data-k="max" min="1" max="50" step="0.5" value="${(c.max || 8000) / 1000}"></label>
+      <div></div>
+      ${chk('frame', 'Корпус з логотипом і лампочками', true)}${chk('invert_battery', 'Перевернути знак батареї', false)}
+      ${chk('invert_grid', 'Перевернути знак мережі', false)}
+    </div>`;
+    this.querySelectorAll('[data-k]').forEach(el => el.addEventListener('change', () => {
+      const k = el.dataset.k, v = { ...this._c };
+      if (el.type === 'checkbox') v[k] = el.checked;
+      else if (k === 'max') v.max = Math.round(parseFloat(el.value || '8') * 1000);
+      else if (el.value) v[k] = el.value; else delete v[k];
+      this._c = v; this._emit();
+    }));
+  }
+}
+if (!customElements.get('deye-screen-card-editor')) customElements.define('deye-screen-card-editor', DeyeScreenCardEditor);
 if (!customElements.get('deye-screen-card')) customElements.define('deye-screen-card', DeyeScreenCard);
 window.customCards = window.customCards || [];
 if (!window.customCards.some(c => c.type === 'deye-screen-card'))
@@ -245,6 +313,13 @@ function hfsDetect(hass) {
 const BRICK = { wall: '#f3e2c4', 'wall-top': '#f8ecd6', gable: '#e6cfa8', 'gable-top': '#ecd8b6', fascia: '#fff7ea', roof: '#b4553a',
   'roof-back': '#8f3f2a', panel: '#2b4a7e', 'panel-top': '#3a5d96', 'panel-seam': '#8fb0de', ground: '#d5eabf',
   shadow: 'rgba(60,90,40,.25)', 'box-front': '#ffffff', 'box-side': '#dfe3ea' };
+const HFS_PALETTES = {
+  brick: { name: 'Цегла й черепиця', bg: 'linear-gradient(180deg,#dff1ff 0%,#f6fbff 60%,#eef7e6 100%)', vars: BRICK },
+  modern: { name: 'Сучасний: білий + графіт', bg: 'linear-gradient(180deg,#cfe9ff 0%,#f4faff 70%)', vars: { wall: '#fafafa', 'wall-top': '#ffffff', gable: '#e9eaec', 'gable-top': '#f1f2f3', fascia: '#ffffff', roof: '#3b3f46', 'roof-back': '#2a2d33', panel: '#1d3461', 'panel-top': '#27467f', 'panel-seam': '#6f8fc4', ground: '#c4e3a9', shadow: 'rgba(30,60,30,.22)' } },
+  nordic: { name: 'Скандинавський: дерево + зелений дах', bg: 'linear-gradient(180deg,#e8f4ff 0%,#ffffff 100%)', vars: { wall: '#c98d5b', 'wall-top': '#d9a274', gable: '#b27648', 'gable-top': '#bf8455', fascia: '#f4efe6', roof: '#3f5f4a', 'roof-back': '#2f4a39', panel: '#22344f', 'panel-top': '#2e4567', 'panel-seam': '#7d97bd', ground: '#e3efd6', shadow: 'rgba(50,70,40,.25)' } },
+  evening: { name: 'Теплий вечір', bg: 'linear-gradient(180deg,#ffd9a8 0%,#ffeeda 45%,#f3f7e6 100%)', vars: { wall: '#ffe7c2', 'wall-top': '#fff0d6', gable: '#f2d3a3', 'gable-top': '#f7dcb2', fascia: '#fff8ec', roof: '#6b4a3a', 'roof-back': '#4f362a', panel: '#1f2c4a', 'panel-top': '#2b3c62', 'panel-seam': '#8193c0', ground: '#bcd99b', shadow: 'rgba(80,50,20,.3)' } },
+  grey: { name: 'Сірий (як оригінал)', bg: '', vars: {} },
+};
 class HomeFlowStyled extends HTMLElement {
   setConfig(config) {
     this._config = config;
@@ -262,8 +337,10 @@ class HomeFlowStyled extends HTMLElement {
       this._inner = document.createElement('home-flow-card');
       this.appendChild(this._inner);
     }
-    this._inner.setConfig(config.card || {});
-    for (const [k, v] of Object.entries(config.vars || {})) this._inner.style.setProperty('--house-' + k, v);
+    this._inner.setConfig(Object.assign({ clickable_entities: true }, config.card || {}));   // натиск на сонце/АКБ/мережу/дім → графік
+    const pal = HFS_PALETTES[config.palette] || null;
+    for (const [k, v] of Object.entries(Object.assign({}, pal ? pal.vars : {}, config.vars || {}))) this._inner.style.setProperty('--house-' + k, v);
+    if (!config.background && pal && pal.bg) { this._inner.style.setProperty('--ha-card-background', pal.bg); this._inner.style.setProperty('--card-background-color', pal.bg); }
     if (config.background) {
       this._inner.style.setProperty('--ha-card-background', config.background);
       this._inner.style.setProperty('--card-background-color', config.background);
@@ -277,11 +354,64 @@ class HomeFlowStyled extends HTMLElement {
     if (d.grid) card.grid = { entity: d.grid };
     if (d.load) card.home = { entity: d.load };
     if (d.battery) card.battery = d.battery_soc ? { entity: d.battery, state_of_charge: d.battery_soc } : { entity: d.battery };
-    return { background: 'linear-gradient(180deg,#dff1ff 0%,#f6fbff 60%,#eef7e6 100%)', vars: BRICK, card };
+    return { palette: 'brick', card };
   }
   getCardSize() { return 6; }
-  getGridOptions() { return { columns: 12, rows: 'auto' }; }
+  getGridOptions() { return { columns: 12, rows: 'auto', min_columns: 6 }; }
+  static getConfigElement() { return document.createElement('home-flow-styled-editor'); }
 }
+
+
+// Простий редактор на звичайних списках — не залежить від лінивого завантаження вибирачів HA.
+function hfsEditorStyle() {
+  return `<style>
+    .f{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;font:14px var(--paper-font-body1_-_font-family,system-ui,sans-serif);color:var(--primary-text-color)}
+    .f>*{min-width:0}
+    .f label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--secondary-text-color)}
+    .f .w{grid-column:1/-1}
+    .f select,.f input[type=number]{width:100%;box-sizing:border-box;font-size:14px;padding:8px;border-radius:6px;border:1px solid var(--divider-color,#ccc);background:var(--card-background-color,#fff);color:var(--primary-text-color)}
+    .f .chk{flex-direction:row;align-items:center;gap:8px;font-size:14px;color:var(--primary-text-color)}
+    .f .hint{grid-column:1/-1;font-size:12px;color:var(--secondary-text-color)}
+  </style>`;
+}
+function hfsEntityOptions(hass, filter, current) {
+  const ids = Object.keys(hass.states).filter(id => filter(id, hass.states[id])).sort();
+  if (current && !ids.includes(current)) ids.unshift(current);
+  const name = id => { const f = hass.states[id] && hass.states[id].attributes.friendly_name; return f ? `${f} — ${id}` : id; };
+  return '<option value="">— автоматично —</option>' + ids.map(id => `<option value="${id}"${id === current ? ' selected' : ''}>${name(id)}</option>`).join('');
+}
+const hfsIsPower = (id, s) => id.startsWith('sensor.') && ['W', 'kW'].includes(s.attributes.unit_of_measurement);
+const hfsIsPct = (id, s) => id.startsWith('sensor.') && s.attributes.unit_of_measurement === '%';
+const hfsIsStatus = (id, s) => id.startsWith('binary_sensor.') || (id.startsWith('sensor.') && !s.attributes.unit_of_measurement && isNaN(parseFloat(s.state)));
+
+// Візуальний редактор будиночка: палітра зі списку + датчики.
+class HomeFlowStyledEditor extends HTMLElement {
+  setConfig(c) { this._c = JSON.parse(JSON.stringify(c)); this._render(); }
+  set hass(h) { const first = !this._hass; this._hass = h; if (first) this._render(); }
+  _render() {
+    if (!this._hass || !this._c) return;
+    const c = this._c, h = this._hass, card = c.card || {};
+    const cur = { solar: (card.solar || {}).entity, battery: (card.battery || {}).entity, soc: (card.battery || {}).state_of_charge, grid: (card.grid || {}).entity, home: (card.home || {}).entity };
+    const sel = (k, label, f, wide) => `<label class="${wide ? 'w' : ''}">${label}<select data-k="${k}">${hfsEntityOptions(h, f, cur[k])}</select></label>`;
+    const pal = c.palette || (c.vars ? '' : 'brick');
+    this.innerHTML = hfsEditorStyle() + `<div class="f">
+      <label class="w">Кольори будиночка<select data-k="palette">${c.vars && !c.palette ? '<option value="" selected>свої кольори (з YAML)</option>' : ''}${Object.entries(HFS_PALETTES).map(([k, p]) => `<option value="${k}"${k === pal ? ' selected' : ''}>${p.name}</option>`).join('')}</select></label>
+      ${sel('solar', 'Сонце — потужність панелей', hfsIsPower, true)}
+      ${sel('battery', 'Батарея — потужність', hfsIsPower)}${sel('soc', 'Батарея — заряд, %', hfsIsPct)}
+      ${sel('grid', 'Мережа', hfsIsPower)}${sel('home', 'Споживання будинку', hfsIsPower)}
+      <div class="hint">Натиск на сонце / батарею / мережу / дім на картці відкриває графік.</div>
+    </div>`;
+    this.querySelectorAll('[data-k]').forEach(el => el.addEventListener('change', () => {
+      const k = el.dataset.k, v = el.value, c2 = JSON.parse(JSON.stringify(this._c)), cd = c2.card = c2.card || {};
+      if (k === 'palette') { if (v) { c2.palette = v; delete c2.vars; delete c2.background; } }
+      else if (k === 'soc') { if (cd.battery) { if (v) cd.battery.state_of_charge = v; else delete cd.battery.state_of_charge; } }
+      else { const key = k; if (v) cd[key] = Object.assign({}, cd[key] || {}, { entity: v }); else delete cd[key]; }
+      this._c = c2;
+      this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: c2 }, bubbles: true, composed: true }));
+    }));
+  }
+}
+if (!customElements.get('home-flow-styled-editor')) customElements.define('home-flow-styled-editor', HomeFlowStyledEditor);
 if (!customElements.get('home-flow-styled')) customElements.define('home-flow-styled', HomeFlowStyled);
 window.customCards = window.customCards || [];
 if (!window.customCards.some(c => c.type === 'home-flow-styled'))

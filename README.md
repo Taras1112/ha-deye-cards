@@ -69,6 +69,12 @@ It understands naming from different integrations and picks the inverter with th
 
 Values in **kW** are converted to W automatically. With several inverters (e.g. `lp1` and `lp3`) or a wrong match, just set the sensors in YAML — explicit settings always win over auto-detection.
 
+### Point-and-click setup and charts
+
+- **No-YAML editor:** ✏️ on the card → pick sensors from lists (only power / percent / status entities), gauge scale in kW, switches for housing and signs. For the house — palette from a list.
+- **Size:** in dashboard edit mode the card can be resized with the mouse ("Layout" tab).
+- **Charts:** tap a zone — solar, battery (or "86 %"), grid or home — and HA opens a dialog with the chart of that value. The AC / Alarm LEDs open grid and inverter-state history. On the house, solar, battery, grid and home are clickable too.
+
 ---
 
 ## deye-screen-card
