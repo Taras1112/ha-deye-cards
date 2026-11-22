@@ -48,9 +48,15 @@ class DeyeScreenCard extends HTMLElement {
     this._c = Object.assign({ max: 8000, frame: true }, c);   // датчиків може не бути — знайдемо самі
     if (!this.shadowRoot) {
       this.attachShadow({ mode: 'open' });
+      this.shadowRoot.innerHTML = '<div id="m"></div><div id="ov"></div>';
+      this._m = this.shadowRoot.getElementById('m');
+      this._ov = this.shadowRoot.getElementById('ov');
+      this._ov.addEventListener('click', ev => this._wmClick(ev));
+      this._ov.addEventListener('change', ev => this._wmInput(ev));
       // натиск на зону (сонце / АКБ / мережа / дім / лампочку) → стандартне вікно HA з графіком цього датчика
       this.shadowRoot.addEventListener('click', ev => {
         const path = ev.composedPath();
+        if (path.includes(this._ov)) return;
         if (path.find(n => n.dataset && n.dataset.act === 'settings')) return this._openSettings();
         const z = path.find(n => n.dataset && n.dataset.e);
         if (z) this.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId: z.dataset.e }, bubbles: true, composed: true }));
@@ -63,13 +69,167 @@ class DeyeScreenCard extends HTMLElement {
   }
   getCardSize() { return 6; }
   // шестерня: сторінка пристрою інвертора в HA (режим роботи, програми, струми заряду…); якщо пристрою немає — налаштування картки
-  _openSettings() {
-    const c = this._c, h = this._hass, reg = (h && h.entities) || {};
+  // ===== шестерня =====
+  _prefix() {
+    const c = this._c;
+    if (c.prefix) return c.prefix;
+    const m = (c.solar || '').match(/^sensor\.(.+)_(?:total_)?(?:pv|solar|dc)(?:_total)?_power$/);
+    return m ? m[1] : null;
+  }
+  _deviceUrl() {
+    const c = this._c, reg = (this._hass && this._hass.entities) || {};
     const ent = [c.solar, c.battery, c.grid, c.load, c.alarm].find(e => e && reg[e] && reg[e].device_id);
-    const url = c.settings_url || (ent ? `/config/devices/device/${reg[ent].device_id}` : null);
-    if (!url) { if (c.solar) this.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId: c.solar }, bubbles: true, composed: true })); return; }
-    history.pushState(null, '', url);
-    window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: false } }));
+    return c.settings_url || (ent ? `/config/devices/device/${reg[ent].device_id}` : null);
+  }
+  _go(url) { history.pushState(null, '', url); window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: false } })); }
+  _openSettings() {
+    const p = this._prefix(), S = this._hass.states;
+    if (p && S[`time.${p}_program_1_time`] && S[`number.${p}_program_1_soc`]) { this._wmOpen(p); return; }
+    const url = this._deviceUrl();
+    if (url) this._go(url);
+    else if (this._c.solar) this.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId: this._c.solar }, bubbles: true, composed: true }));
+  }
+  // ===== вікно Work Mode (як на інверторі): зміни пишуться лише після ✔ =====
+  _wmEnt(p) {
+    const e = { tou: `select.${p}_time_of_use`, work_mode: `select.${p}_work_mode`, pattern: `select.${p}_energy_pattern`,
+      zero: `number.${p}_zero_export_power`, sell: `switch.${p}_export_surplus`, sell_power: `number.${p}_export_surplus_power`,
+      peak: `switch.${p}_grid_peak_shaving`, peak_power: `number.${p}_grid_peak_shaving`, rows: [] };
+    for (let i = 1; i <= 6; i++) e.rows.push({ time: `time.${p}_program_${i}_time`, power: `number.${p}_program_${i}_power`, soc: `number.${p}_program_${i}_soc`, chg: `select.${p}_program_${i}_charging` });
+    return e;
+  }
+  _wmRead() {
+    const S = this._hass.states, E = this._wmE, st = e => S[e] ? S[e].state : undefined;
+    const chg = v => ({ grid: v === 'Grid' || v === 'Both', gen: v === 'Generator' || v === 'Both' });
+    return {
+      tou: st(E.tou) !== undefined ? st(E.tou) !== 'Disabled' : null, work_mode: st(E.work_mode), pattern: st(E.pattern),
+      zero: st(E.zero), sell: st(E.sell) === 'on', sell_power: st(E.sell_power), peak: st(E.peak) === 'on', peak_power: st(E.peak_power),
+      rows: E.rows.map(r => Object.assign({ time: (st(r.time) || '').slice(0, 5), power: st(r.power), soc: st(r.soc) }, chg(st(r.chg)))),
+    };
+  }
+  _wmOpen(p) { this._wmE = this._wmEnt(p); this._wmCur = this._wmRead(); this._wmD = JSON.parse(JSON.stringify(this._wmCur)); this._wmPage = 2; this._wmMsg = ''; this._wmConfirm = false; this._wmRender(); }
+  _wmClose() { this._ov.innerHTML = ''; this._wmD = null; }
+  _wmChanges() {
+    const c = this._wmCur, d = this._wmD, E = this._wmE, S = this._hass.states, out = [];
+    const sel = (e, v, label) => out.push({ label, call: ['select', 'select_option', { entity_id: e, option: v }] });
+    const num = (e, v, label) => out.push({ label, call: ['number', 'set_value', { entity_id: e, value: Number(v) }] });
+    const sw = (e, on, label) => out.push({ label, call: ['switch', on ? 'turn_on' : 'turn_off', { entity_id: e }] });
+    if (d.tou !== c.tou && d.tou !== null) {
+      const opts = (S[E.tou].attributes.options || []);
+      sel(E.tou, d.tou ? (opts.includes('Enabled') ? 'Enabled' : opts.includes('Week') ? 'Week' : opts[opts.length - 1]) : 'Disabled', `Time Of Use: ${d.tou ? 'увімкнено' : 'вимкнено'}`);
+    }
+    if (d.work_mode !== c.work_mode) sel(E.work_mode, d.work_mode, `Work mode: ${d.work_mode}`);
+    if (d.pattern !== c.pattern) sel(E.pattern, d.pattern, `Energy pattern: ${d.pattern}`);
+    if (String(d.zero) !== String(c.zero)) num(E.zero, d.zero, `Zero export: ${d.zero} W`);
+    if (d.sell !== c.sell) sw(E.sell, d.sell, `Продаж надлишку: ${d.sell ? 'так' : 'ні'}`);
+    if (String(d.sell_power) !== String(c.sell_power)) num(E.sell_power, d.sell_power, `Потужність продажу: ${d.sell_power} W`);
+    if (d.peak !== c.peak) sw(E.peak, d.peak, `Обмеження з мережі: ${d.peak ? 'так' : 'ні'}`);
+    if (String(d.peak_power) !== String(c.peak_power)) num(E.peak_power, d.peak_power, `Ліміт з мережі: ${d.peak_power} W`);
+    d.rows.forEach((r, i) => {
+      const o = c.rows[i], R = E.rows[i], n = i + 1;
+      if (r.time !== o.time) out.push({ label: `Програма ${n}: початок ${r.time}`, call: ['time', 'set_value', { entity_id: R.time, time: r.time + ':00' }] });
+      if (String(r.power) !== String(o.power)) num(R.power, r.power, `Програма ${n}: потужність ${r.power} W`);
+      if (String(r.soc) !== String(o.soc)) num(R.soc, r.soc, `Програма ${n}: батарея ${r.soc}%`);
+      if (r.grid !== o.grid || r.gen !== o.gen) {
+        const v = r.grid && r.gen ? 'Both' : r.grid ? 'Grid' : r.gen ? 'Generator' : 'Disabled';
+        sel(R.chg, v, `Програма ${n}: заряд — ${({ Both: 'мережа + генератор', Grid: 'від мережі', Generator: 'від генератора', Disabled: 'вимкнено' })[v]}`);
+      }
+    });
+    return out;
+  }
+  _wmInput(ev) {
+    const el = ev.target, k = el.dataset.k, i = el.dataset.i, d = this._wmD;
+    if (!k || !d) return;
+    const v = el.type === 'checkbox' ? el.checked : el.value;
+    if (i !== undefined) d.rows[+i][k] = v; else d[k] = v;
+    this._wmMsg = ''; this._wmRenderFoot();
+  }
+  async _wmClick(ev) {
+    const b = ev.composedPath().find(n => n.dataset && n.dataset.wm);
+    if (!b) return;
+    const a = b.dataset.wm;
+    if (a === 'close') return this._wmClose();
+    if (a === 'up') { this._wmPage = 1; return this._wmRender(); }
+    if (a === 'down') { this._wmPage = 2; return this._wmRender(); }
+    if (a === 'all') { const u = this._deviceUrl(); this._wmClose(); if (u) this._go(u); return; }
+    if (a === 'cancel') { if (this._wmConfirm) { this._wmConfirm = false; return this._wmRender(); } return this._wmClose(); }
+    if (a === 'ok') {
+      const ch = this._wmChanges();
+      if (!ch.length) { this._wmMsg = 'Змін немає'; return this._wmRenderFoot(); }
+      if (!this._wmConfirm) { this._wmConfirm = true; return this._wmRender(); }
+      // записуємо по черзі
+      this._wmMsg = 'Записую в інвертор…'; this._wmRenderFoot();
+      let ok = 0;
+      for (const c of ch) {
+        try { await this._hass.callService(...c.call); ok++; await new Promise(r => setTimeout(r, 400)); }
+        catch (e) { this._wmMsg = `❌ Помилка на «${c.label}»: ${e.message || e}`; this._wmConfirm = false; this._wmRender(); return; }
+      }
+      this._wmConfirm = false;
+      await new Promise(r => setTimeout(r, 2500));
+      this._wmCur = this._wmRead(); this._wmD = JSON.parse(JSON.stringify(this._wmCur));
+      this._wmMsg = `✅ Записано: ${ok}`; this._wmRender();
+    }
+  }
+  _wmRenderFoot() {
+    const f = this._ov.querySelector('.wmfoot');
+    if (!f) return;
+    const n = this._wmD ? this._wmChanges().length : 0;
+    f.textContent = this._wmMsg || (n ? `Змін: ${n} — натисни ✔, щоб записати` : 'Без змін');
+  }
+  _wmRender() {
+    const d = this._wmD, S = this._hass.states, E = this._wmE;
+    if (!d) return;
+    const opts = e => (S[e] && S[e].attributes.options) || [];
+    const chk = (k, v, i) => `<input type="checkbox" data-k="${k}"${i !== undefined ? ` data-i="${i}"` : ''}${v ? ' checked' : ''}>`;
+    const num = (k, v, i, w) => `<input type="number" data-k="${k}"${i !== undefined ? ` data-i="${i}"` : ''} value="${v ?? ''}" style="width:${w || 64}px">`;
+    const selb = (k, e, v) => `<select data-k="${k}">${opts(e).map(o => `<option${o === v ? ' selected' : ''}>${o}</option>`).join('')}</select>`;
+    let body;
+    if (this._wmConfirm) {
+      body = `<div class="wmconf"><b>Записати в інвертор?</b><ul>${this._wmChanges().map(c => `<li>${c.label}</li>`).join('')}</ul>
+        <div class="wmhint">✔ — записати, ✖ — повернутись до правки</div></div>`;
+    } else if (this._wmPage === 1) {
+      body = `<table class="wm1">
+        <tr><td>Work mode</td><td>${selb('work_mode', E.work_mode, d.work_mode)}</td></tr>
+        <tr><td>Energy pattern</td><td>${selb('pattern', E.pattern, d.pattern)}</td></tr>
+        <tr><td>Zero export, W</td><td>${num('zero', d.zero)}</td></tr>
+        <tr><td>${chk('sell', d.sell)} Solar sell, W</td><td>${num('sell_power', d.sell_power, undefined, 80)}</td></tr>
+        <tr><td>${chk('peak', d.peak)} Grid peak shaving, W</td><td>${num('peak_power', d.peak_power, undefined, 80)}</td></tr>
+      </table>`;
+    } else {
+      body = `<div class="tou">${d.tou === null ? '' : `<label>${chk('tou', d.tou)} Time Of Use</label>`}</div>
+      <table class="wm2"><tr><th>Grid<br>Charge</th><th>Gen</th><th colspan="2">Time</th><th>Power</th><th>Batt</th></tr>
+      ${d.rows.map((r, i) => `<tr><td>${chk('grid', r.grid, i)}</td><td>${chk('gen', r.gen, i)}</td>
+        <td><input type="time" data-k="time" data-i="${i}" value="${r.time}"></td><td><span class="end">${d.rows[(i + 1) % 6].time}</span></td>
+        <td>${num('power', r.power, i, 62)}</td><td>${num('soc', r.soc, i, 46)}<span class="pc">%</span></td></tr>`).join('')}
+      </table>`;
+    }
+    this._ov.innerHTML = `<style>
+      #ov .wm{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;background:#1d2a8a;border-radius:var(--ha-card-border-radius,12px);overflow:hidden;font:14px Arial,sans-serif;color:#fff}
+      #ov .wmh{background:linear-gradient(180deg,#58b8f2,#2b86d6);padding:8px 14px;font:700 22px Arial,sans-serif;display:flex;justify-content:space-between;align-items:center}
+      #ov .wmh .x{cursor:pointer;font-size:20px;opacity:.85}
+      #ov .wmb{flex:1;display:flex;min-height:0;background:linear-gradient(180deg,#2533b4,#1b2a8e)}
+      #ov .wmc{flex:1;overflow:auto;padding:8px 10px}
+      #ov .wmr{width:64px;display:flex;flex-direction:column;gap:6px;padding:8px 6px;border-left:1px solid #5b74e6}
+      #ov .wmr button{flex:1;min-height:34px;border:2px solid #9fc0ff;border-radius:6px;background:linear-gradient(180deg,#3e86e8,#1d5fc6);color:#fff;font:700 22px Arial;cursor:pointer}
+      #ov .wmr .lbl{font-size:10px;text-align:center;line-height:1.1}
+      #ov table{border-collapse:separate;border-spacing:4px 5px;margin:auto}
+      #ov th{font-weight:400;font-size:12px;color:#d9e4ff}
+      #ov td{text-align:center;color:#fff}
+      #ov .wm1 td:first-child{text-align:left;padding-right:10px}
+      #ov input[type=time],#ov input[type=number],#ov select{background:#eef4ff;color:#111;border:1px solid #9fb6e6;border-radius:2px;padding:4px;font:14px Arial}
+      #ov input[type=checkbox]{width:22px;height:22px;accent-color:#5aa0ff}
+      #ov .end{display:inline-block;background:#dfe8fb;color:#333;padding:5px 6px;border-radius:2px;min-width:44px}
+      #ov .pc{margin-left:2px}
+      #ov .tou{text-align:center;margin:2px 0 4px;font-size:16px}
+      #ov .wmbar{background:#16206e;padding:6px 12px;font-size:12px;color:#cfe0ff;display:flex;justify-content:space-between;gap:8px}
+      #ov .wmbar a{color:#9fd0ff;cursor:pointer;text-decoration:underline}
+      #ov .wmconf{padding:6px 10px}#ov .wmconf ul{margin:6px 0 6px 18px;padding:0}#ov .wmhint{font-size:12px;color:#cfe0ff}
+    </style>
+    <div class="wm"><div class="wmh">Work Mode${this._wmPage === 1 ? ' 1' : ''}<span class="x" data-wm="close">✕</span></div>
+      <div class="wmb"><div class="wmc">${body}</div>
+        <div class="wmr"><button data-wm="up">⇧</button><div class="lbl">Work<br>Mode${this._wmPage}</div><button data-wm="down">⇩</button>
+          <button data-wm="cancel">✖</button><button data-wm="ok">✔</button></div></div>
+      <div class="wmbar"><span class="wmfoot"></span><a data-wm="all">усі налаштування ⚙</a></div></div>`;
+    this._wmRenderFoot();
   }
   getGridOptions() { return { columns: 12, rows: 'auto', min_columns: 6 }; }
   static getConfigElement() { return document.createElement('deye-screen-card-editor'); }
@@ -171,9 +331,9 @@ class DeyeScreenCard extends HTMLElement {
   ${ln(`M268 ${S.oy + 8} H294 V${S.by} H322`, loadOut)}${ar(324, S.by, 0, loadOut)}${dot(294, S.by, loadOut)}
   <circle cx="${S.ox}" cy="${S.oy}" r="25" class="on"/><text x="${S.ox}" y="${S.oy + 7}" class="ontx">ON</text>
 </svg>`;
-    this.shadowRoot.innerHTML = `
+    this._m.innerHTML = `
 <style>
-  :host{display:block}
+  :host{display:block;position:relative}
   ha-card{overflow:hidden;padding:0}
   .dev{background:radial-gradient(ellipse at 50% 30%,#e9eaea 0%,#d3d5d6 55%,#b9bcbe 100%);padding:16px 7% 22px;text-align:center}
   .logo{font:700 38px/1 "Arial Rounded MT Bold",Arial,sans-serif;color:#1d6f7a;letter-spacing:-1px;margin:2px 0 14px;position:relative;display:inline-block}
