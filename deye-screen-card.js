@@ -319,7 +319,7 @@ class DeyeScreenCard extends HTMLElement {
         `<text x="${cx}" y="${cy + 43}" class="val">${kw(w)}</text><text x="${cx}" y="${cy + 53}" class="unit">kW</text></g>`;
     };
     const pvIn = pv > 5, batIn = bat > 5, batOut = bat < -5, gridIn = grid > 5, gridOut = grid < -5, loadOut = load > 5;
-    const DUR = 1.6, phase = (Date.now() / 1000) % DUR;
+    const DUR = 3.2, phase = (Date.now() / 1000) % DUR;
     const ln = (d, act, rev) => `<path d="${d}" class="ln${act ? ' act' : ''}"/>` + (act ? [0, 0.5].map(k =>
       `<circle r="3.2" class="run" style="offset-path:path('${d}');animation-delay:-${(phase + k * DUR).toFixed(2)}s;animation-direction:${rev ? 'reverse' : 'normal'}"/>`).join('') : '');
     const ar = (x, y, rot, act) => act ? `<path transform="translate(${x} ${y}) rotate(${rot})" d="M-5 -4.5 L0.5 0 L-5 4.5" class="arr"/>` : '';
@@ -370,7 +370,7 @@ class DeyeScreenCard extends HTMLElement {
   .gear{fill:#3d6fae}
   .ln{fill:none;stroke:#2a3038;stroke-width:1.5;stroke-dasharray:2.5 3;opacity:.35}
   .ln.act{opacity:.9}
-  .run{fill:#2fc23c;stroke:#eef1f3;stroke-width:1;offset-rotate:0deg;animation:run ${1.6}s linear infinite}
+  .run{fill:#2fc23c;stroke:#eef1f3;stroke-width:1;offset-rotate:0deg;animation:run ${3.2}s linear infinite}
   @keyframes run{from{offset-distance:0%}to{offset-distance:100%}}
   .gearz{cursor:pointer}.gearz:hover .gear{fill:#2f5a92}
   .arr{fill:none;stroke:#2a3038;stroke-width:1.6;stroke-dasharray:2 1.6;stroke-linecap:round}
