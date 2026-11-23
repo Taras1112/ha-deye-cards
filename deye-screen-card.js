@@ -308,9 +308,13 @@ class DeyeScreenCard extends HTMLElement {
         <rect x="23" y="28" width="16" height="15" fill="${BG}"/><path stroke="${D}" stroke-width="2.4" d="M31 28v15"/>
         <path stroke="${D}" stroke-width="3" d="M2 51h58"/></g>`,
     };
-    const gauge = (cx, cy, w, icon, ent) => {
+    const gauge = (cx, cy, w, icon, ent, entTop) => {
       const f = Math.min(Math.abs(w) / max, 1), end = A0 + SWEEP * f, [kx, ky] = pt(cx, cy, end);
-      return `<g class="zone"${ent ? ` data-e="${ent}"` : ''}><rect x="${cx - 64}" y="${cy - 56}" width="128" height="116" rx="12" class="hit"/>` +
+      // entTop: зона розділена навпіл (зручно на телефоні) — верх відкриває entTop (заряд, %), низ — ent (потужність)
+      const hit = entTop
+        ? `<rect x="${cx - 64}" y="${cy - 56}" width="128" height="58" rx="12" class="hit" data-e="${entTop}"/><rect x="${cx - 64}" y="${cy + 2}" width="128" height="58" rx="12" class="hit" data-e="${ent}"/>`
+        : `<rect x="${cx - 64}" y="${cy - 56}" width="128" height="116" rx="12" class="hit"/>`;
+      return `<g class="zone"${ent && !entTop ? ` data-e="${ent}"` : ''}>${hit}` +
         `<path d="${arc(cx, cy, A0, A0 + SWEEP)}" class="track"/>` +
         (f > 0.004 ? `<path d="${arc(cx, cy, A0, end)}" class="fill"/>` : '') +
         `<circle cx="${kx.toFixed(1)}" cy="${ky.toFixed(1)}" r="4.5" class="knob"/>` +
@@ -320,7 +324,7 @@ class DeyeScreenCard extends HTMLElement {
     };
     const pvIn = pv > 5, batIn = bat > 5, batOut = bat < -5, gridIn = grid > 5, gridOut = grid < -5, loadOut = load > 5;
     const DUR = 3.2, phase = (Date.now() / 1000) % DUR;
-    const ln = (d, act, rev) => `<path d="${d}" class="ln${act ? ' act' : ''}"/>` + (act ? [0, 0.5].map(k =>
+    const ln = (d, act, rev) => `<path d="${d}" class="ln${act ? ' act' : ''}"/>` + (act ? [0].map(k =>
       `<circle r="3.2" class="run" style="offset-path:path('${d}');animation-delay:-${(phase + k * DUR).toFixed(2)}s;animation-direction:${rev ? 'reverse' : 'normal'}"/>`).join('') : '');
     const ar = (x, y, rot, act) => act ? `<path transform="translate(${x} ${y}) rotate(${rot})" d="M-5 -4.5 L0.5 0 L-5 4.5" class="arr"/>` : '';
     const dot = () => '';   // статичних крапок на згинах немає — лише ті, що бігають
@@ -331,7 +335,7 @@ class DeyeScreenCard extends HTMLElement {
   <text id="dw" x="400" y="33" class="hdr" text-anchor="end"></text>
   <g class="gearz" data-act="settings" transform="translate(424 27)"><circle r="16" fill="transparent"/><path class="gear" d="M-2.2-12h4.4l.8 3.4 2.6 1.1 3-1.8 3.1 3.1-1.8 3 1.1 2.6 3.4.8v4.4l-3.4.8-1.1 2.6 1.8 3-3.1 3.1-3-1.8-2.6 1.1-.8 3.4h-4.4l-.8-3.4-2.6-1.1-3 1.8-3.1-3.1 1.8-3-1.1-2.6-3.4-.8v-4.4l3.4-.8 1.1-2.6-1.8-3 3.1-3.1 3 1.8 2.6-1.1z"/><circle r="4.6" fill="#eef1f3"/></g>
   ${gauge(S.sx, S.ty, pv, I.sun, c.solar)}
-  ${gauge(S.sx, S.by, bat, I.bat, c.battery || c.battery_soc)}
+  ${gauge(S.sx, S.by, bat, I.bat, c.battery || c.battery_soc, c.battery && c.battery_soc ? c.battery_soc : null)}
   ${soc !== null ? `<text x="${S.sx}" y="${S.by - 10}" class="soc zone" data-e="${c.battery_soc}">${soc}%</text>` : ''}
   ${gauge(S.gx, S.ty, grid, I.grid, c.grid)}
   ${gauge(S.gx, S.by, load, I.home, c.load)}
@@ -379,7 +383,8 @@ class DeyeScreenCard extends HTMLElement {
   .dot{fill:#2fc23c}
   .zone{cursor:pointer}
   .hit{fill:transparent;transition:fill .15s}
-  .zone:hover .hit{fill:rgba(47,194,60,.10)}
+  .hit:hover{fill:rgba(47,194,60,.12)}
+  .zone > :not(.hit){pointer-events:none}
   .lamp{cursor:pointer}
 </style>
 <ha-card><div class="${c.frame ? 'dev' : 'noframe'}">
