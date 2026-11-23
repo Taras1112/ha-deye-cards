@@ -273,7 +273,8 @@ class DeyeScreenCard extends HTMLElement {
     const ac = c.grid_status ? this._on(c.grid_status) : Math.abs(grid) > 5;
     const alarm = c.alarm ? this._on(c.alarm) : false;
     const dc = pv > 5;   // як на інверторі: DC світиться лише коли панелі дають енергію
-    const key = [pv, bat, grid, load, soc, ac, alarm].join('|');
+    const off = !!c.grid_status && !ac;   // «Off grid» лише за датчиком: 0 Вт з мережі ≠ мережі немає
+    const key = [pv, bat, grid, load, soc, ac, alarm, off].join('|');
     if (key === this._key) return;
     this._key = key;
     const kw = w => (Math.abs(w) / 1000).toFixed(2);
@@ -342,7 +343,8 @@ class DeyeScreenCard extends HTMLElement {
   ${gauge(S.gx, S.by, load, I.home, c.load)}
   ${ln(`M152 ${S.ty} H186 V${S.oy - 8} H206`, pvIn)}${ar(208, S.oy - 8, 0, pvIn)}${dot(186, S.oy - 8, pvIn)}
   ${ln(`M152 ${S.by} H186 V${S.oy + 8} H206`, batIn || batOut, batOut)}${ar(208, S.oy + 8, 0, batIn)}${ar(158, S.by, 180, batOut)}${dot(186, S.oy + 8, batIn || batOut)}
-  ${ln(`M328 ${S.ty} H294 V${S.oy - 8} H274`, gridIn || gridOut, gridOut)}${ar(272, S.oy - 8, 180, gridIn)}${ar(322, S.ty, 0, gridOut)}${dot(294, S.oy - 8, gridIn || gridOut)}
+  ${ln(`M328 ${S.ty} H294 V${S.oy - 8} H274`, !off && (gridIn || gridOut), gridOut)}${ar(272, S.oy - 8, 180, !off && gridIn)}${ar(322, S.ty, 0, !off && gridOut)}${dot(294, S.oy - 8, gridIn || gridOut)}
+  ${off ? `<text x="303" y="${S.ty - 10}" class="offg">Off grid</text><path transform="translate(311 ${S.ty})" d="M-4.5 -4.5 L4.5 4.5 M4.5 -4.5 L-4.5 4.5" class="offx"/>` : ''}
   ${ln(`M268 ${S.oy + 8} H294 V${S.by} H322`, loadOut)}${ar(324, S.by, 0, loadOut)}${dot(294, S.by, loadOut)}
   <circle cx="${S.ox}" cy="${S.oy}" r="25" class="on"/><text x="${S.ox}" y="${S.oy + 7}" class="ontx">ON</text>
 </svg>`;
@@ -382,6 +384,8 @@ class DeyeScreenCard extends HTMLElement {
   .on{fill:#fff;stroke:#2fc23c;stroke-width:3}
   .ontx{font:700 17px Arial,sans-serif;fill:#2fb83a;text-anchor:middle}
   .dot{fill:#2fc23c}
+  .offg{font:12px Arial,sans-serif;fill:#d8282f;text-anchor:middle}
+  .offx{stroke:#d8282f;stroke-width:2;stroke-linecap:round}
   .zone{cursor:pointer}
   .hit{fill:transparent;transition:fill .15s}
   .hit:hover{fill:rgba(47,194,60,.12)}
